@@ -1,0 +1,6 @@
+program whilePrg;
+
+begin
+    while a < 1 do
+        a[1] := 1;
+end.
