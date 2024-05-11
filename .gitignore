@@ -1,3 +1,6 @@
 build
 samples/*
 !samples/*.mila
+/.idea
+.nrepl-port
+/target
