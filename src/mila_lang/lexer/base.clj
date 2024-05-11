@@ -105,6 +105,7 @@
                    :token/or
                    :token/program
                    :token/procedure
+                   :token/then
                    :token/to
                    :token/var
                    :token/while})

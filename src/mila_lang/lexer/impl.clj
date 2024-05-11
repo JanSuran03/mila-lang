@@ -83,7 +83,7 @@
                        (zero? as-hex))
               (invalid-token (str "$" ch)))
             (if as-hex
-              (recur (+ (* value 16) as-hex) (inc index) true)
+              (recur (long (+ (* value 16) as-hex)) (inc index) true)
               (case ch
                 [lexer/safe-num-sym-end-pat] [[:token/number value] index]
                 (invalid-token (str "$" value ch))))))))))
@@ -105,7 +105,7 @@
                        (zero? as-oct))
               (invalid-token (str "&" ch)))
             (if as-oct
-              (recur (+ (* value 8) as-oct) (inc index) true)
+              (recur (long (+ (* value 8) as-oct)) (inc index) true)
               (case ch
                 [lexer/safe-num-sym-end-pat] [[:token/number value] index]
                 (invalid-token (str "&" value ch))))))))))
@@ -117,7 +117,7 @@
       [[:token/gt] index]
       (let [ch (char-at input index)]
         (case ch
-          \= [[:token/ge] index]
+          \= [[:token/ge] (inc index)]
           [lexer/token-end-pat] [[:token/gt] index]
           (invalid-token (str ">" ch)))))))
 
