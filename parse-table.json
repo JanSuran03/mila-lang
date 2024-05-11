@@ -1,0 +1,401 @@
+{
+  "S": {
+    "program": 1
+  },
+  "TOP-LEVEL-BLOCK": {
+    "begin": 2,
+    "const": 4,
+    "function": 5,
+    "procedure": 6,
+    "var": 3
+  },
+  "TOP-LEVEL-BLOCK-OR-END": {
+    "dot": 7,
+    "semicolon": 8
+  },
+  "FUNCTION": {
+    "function": 9
+  },
+  "FUNC-PROC-BODY": {
+    "begin": 11,
+    "const": 11,
+    "forward": 10,
+    "var": 11
+  },
+  "FUNCTION-BLOCKS&": {
+    "begin": 12,
+    "const": 14,
+    "var": 13,
+    "ε": 12
+  },
+  "PROCEDURE": {
+    "procedure": 15
+  },
+  "FUNCALL": {
+    "symbol": 16
+  },
+  "FUNCALL-ARGS": {
+    "lparen": 17
+  },
+  "FUNCALL-ARGS-INNER": {
+    "add": 19,
+    "lparen": 19,
+    "number": 19,
+    "rparen": 18,
+    "string": 19,
+    "sub": 19,
+    "symbol": 19,
+    "ε": 18
+  },
+  "FUNCALL-ARGS-INNER2": {
+    "comma": 21,
+    "rparen": 20,
+    "ε": 20
+  },
+  "NUMBER-ARRAY-INDEX": {
+    "number": 22,
+    "sub": 23
+  },
+  "ARRAY-DECL": {
+    "array": 24
+  },
+  "TYPE-SPECIFIER": {
+    "array": 25,
+    "symbol": 26
+  },
+  "ARGLIST": {
+    "lparen": 27
+  },
+  "ARGLIST-INNER": {
+    "rparen": 28,
+    "symbol": 29,
+    "ε": 28
+  },
+  "ARGLIST-INNER2": {
+    "rparen": 30,
+    "semicolon": 31,
+    "ε": 30
+  },
+  "CONST-BLOCK": {
+    "const": 32
+  },
+  "CONST-DECL": {
+    "symbol": 33
+  },
+  "CONST-DECLS&": {
+    "begin": 34,
+    "const": 34,
+    "function": 34,
+    "procedure": 34,
+    "symbol": 35,
+    "var": 34,
+    "ε": 34
+  },
+  "VAR-BLOCK": {
+    "var": 36
+  },
+  "VAR-DECL": {
+    "symbol": 37
+  },
+  "VAR-NAMES&": {
+    "colon": 38,
+    "comma": 39,
+    "ε": 38
+  },
+  "VAR-DECLS&": {
+    "begin": 40,
+    "const": 40,
+    "function": 40,
+    "procedure": 40,
+    "symbol": 41,
+    "var": 40,
+    "ε": 40
+  },
+  "INDEX-OP": {
+    "symbol": 42
+  },
+  "INDEX-OP-INNER": {
+    "lbracket": 43
+  },
+  "EXPR": {
+    "add": 44,
+    "lparen": 44,
+    "number": 44,
+    "string": 44,
+    "sub": 44,
+    "symbol": 44
+  },
+  "EXPR-SYM'": {
+    "add": 45,
+    "and": 45,
+    "comma": 45,
+    "div": 45,
+    "do": 45,
+    "downto": 45,
+    "else": 45,
+    "end": 45,
+    "eq": 45,
+    "ge": 45,
+    "gt": 45,
+    "lbracket": 46,
+    "le": 45,
+    "lparen": 47,
+    "lt": 45,
+    "mod": 45,
+    "mul": 45,
+    "ne": 45,
+    "or": 45,
+    "rbracket": 45,
+    "rparen": 45,
+    "semicolon": 45,
+    "sub": 45,
+    "then": 45,
+    "to": 45,
+    "ε": 45
+  },
+  "EXPR-UNARY": {
+    "add": 49,
+    "lparen": 48,
+    "number": 48,
+    "string": 48,
+    "sub": 50,
+    "symbol": 48
+  },
+  "EXPR-MUL": {
+    "lparen": 51,
+    "number": 51,
+    "string": 51,
+    "symbol": 51
+  },
+  "EXPR-MUL'": {
+    "comma": 52,
+    "div": 54,
+    "do": 52,
+    "downto": 52,
+    "else": 52,
+    "end": 52,
+    "mod": 55,
+    "mul": 53,
+    "rbracket": 52,
+    "rparen": 52,
+    "semicolon": 52,
+    "then": 52,
+    "to": 52,
+    "ε": 52
+  },
+  "EXPR-ADD": {
+    "lparen": 56,
+    "number": 56,
+    "string": 56,
+    "symbol": 56
+  },
+  "EXPR-ADD'": {
+    "add": 58,
+    "comma": 57,
+    "div": 57,
+    "do": 57,
+    "downto": 57,
+    "else": 57,
+    "end": 57,
+    "mod": 57,
+    "mul": 57,
+    "rbracket": 57,
+    "rparen": 57,
+    "semicolon": 57,
+    "sub": 59,
+    "then": 57,
+    "to": 57,
+    "ε": 57
+  },
+  "EXPR-CMP": {
+    "lparen": 60,
+    "number": 60,
+    "string": 60,
+    "symbol": 60
+  },
+  "EXPR-CMP'": {
+    "add": 61,
+    "comma": 61,
+    "div": 61,
+    "do": 61,
+    "downto": 61,
+    "else": 61,
+    "end": 61,
+    "ge": 65,
+    "gt": 64,
+    "le": 63,
+    "lt": 62,
+    "mod": 61,
+    "mul": 61,
+    "rbracket": 61,
+    "rparen": 61,
+    "semicolon": 61,
+    "sub": 61,
+    "then": 61,
+    "to": 61,
+    "ε": 61
+  },
+  "EXPR-EQ-NE": {
+    "lparen": 66,
+    "number": 66,
+    "string": 66,
+    "symbol": 66
+  },
+  "EXPR-EQ-NE'": {
+    "add": 67,
+    "comma": 67,
+    "div": 67,
+    "do": 67,
+    "downto": 67,
+    "else": 67,
+    "end": 67,
+    "eq": 68,
+    "ge": 67,
+    "gt": 67,
+    "le": 67,
+    "lt": 67,
+    "mod": 67,
+    "mul": 67,
+    "ne": 69,
+    "rbracket": 67,
+    "rparen": 67,
+    "semicolon": 67,
+    "sub": 67,
+    "then": 67,
+    "to": 67,
+    "ε": 67
+  },
+  "EXPR-AND": {
+    "lparen": 70,
+    "number": 70,
+    "string": 70,
+    "symbol": 70
+  },
+  "EXPR-AND'": {
+    "add": 71,
+    "and": 72,
+    "comma": 71,
+    "div": 71,
+    "do": 71,
+    "downto": 71,
+    "else": 71,
+    "end": 71,
+    "eq": 71,
+    "ge": 71,
+    "gt": 71,
+    "le": 71,
+    "lt": 71,
+    "mod": 71,
+    "mul": 71,
+    "ne": 71,
+    "rbracket": 71,
+    "rparen": 71,
+    "semicolon": 71,
+    "sub": 71,
+    "then": 71,
+    "to": 71,
+    "ε": 71
+  },
+  "EXPR-OR": {
+    "lparen": 73,
+    "number": 73,
+    "string": 73,
+    "symbol": 73
+  },
+  "EXPR-OR'": {
+    "add": 74,
+    "and": 74,
+    "comma": 74,
+    "div": 74,
+    "do": 74,
+    "downto": 74,
+    "else": 74,
+    "end": 74,
+    "eq": 74,
+    "ge": 74,
+    "gt": 74,
+    "le": 74,
+    "lt": 74,
+    "mod": 74,
+    "mul": 74,
+    "ne": 74,
+    "or": 75,
+    "rbracket": 74,
+    "rparen": 74,
+    "semicolon": 74,
+    "sub": 74,
+    "then": 74,
+    "to": 74,
+    "ε": 74
+  },
+  "EXPR-L0": {
+    "lparen": 77,
+    "number": 76,
+    "string": 76,
+    "symbol": 78
+  },
+  "LITERAL": {
+    "number": 80,
+    "string": 79
+  },
+  "FOR-LOOP": {
+    "for": 81
+  },
+  "FOR-LOOP-TAIL": {
+    "downto": 83,
+    "to": 82
+  },
+  "WHILE-LOOP": {
+    "while": 84
+  },
+  "ASSIGNMENT": {
+    "symbol": 85
+  },
+  "ASSIGNMENT-RST": {
+    "assign": 86,
+    "lbracket": 87
+  },
+  "IF-ELSE-BLOCK": {
+    "if": 88
+  },
+  "THEN-BRANCH&": {
+    "else": 90,
+    "end": 89,
+    "semicolon": 89,
+    "ε": 89
+  },
+  "PROCEDURAL-BLOCK": {
+    "begin": 95,
+    "exit": 96,
+    "for": 91,
+    "if": 93,
+    "symbol": 94,
+    "while": 92
+  },
+  "FUNCALL-OR-ASSIGNMENT": {
+    "symbol": 97
+  },
+  "FUNCALL-OR-ASSIGNMENT-RST": {
+    "assign": 98,
+    "lbracket": 98,
+    "lparen": 99
+  },
+  "BEGIN-END-BLOCK": {
+    "begin": 100
+  },
+  "BEGIN-END-BLOCK-RST": {
+    "end": 101,
+    "semicolon": 102,
+    "ε": 101
+  },
+  "BEGIN-END-BLOCK-REC": {
+    "begin": 104,
+    "end": 103,
+    "exit": 104,
+    "for": 104,
+    "if": 104,
+    "symbol": 104,
+    "while": 104,
+    "ε": 103
+  }
+}
