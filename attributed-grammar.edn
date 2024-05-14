@@ -4,8 +4,7 @@
           [iter prog-name] (match [iter :token/symbol])
           [iter] (match [iter :token/semicolon])
           [iter blocks] (TOP-LEVEL-BLOCK [iter []])]
-      {:blocks    blocks
-       :prog-name prog-name}))]
+      (CProgram. prog-name blocks)))]
 
  ["TOP-LEVEL-BLOCK -> BEGIN-END-BLOCK TOP-LEVEL-BLOCK-OR-END"
   (fn [[iter blocks]]
@@ -42,19 +41,20 @@
           [iter arglist] (ARGLIST [iter])
           [iter] (match [iter :token/colon])
           [iter return-type] (match [iter :token/symbol])
-          [iter] (match [iter :token/semicolon])]
-      (FUNC-PROC-BODY [iter {:fn-name fn-name :arglist arglist :return-type return-type}])))]
+          [iter] (match [iter :token/semicolon])
+          [iter {:keys [locals body forward]}] (FUNC-PROC-BODY [iter])]
+      [iter (CFunction. fn-name arglist return-type locals body forward)]))]
  ["FUNC-PROC-BODY -> forward semicolon"
-  (fn [[iter fn-proc-desc]]
+  (fn [[iter]]
     (let [[iter] (match [iter :token/forward])
           [iter] (match [iter :token/semicolon])]
-      [iter (assoc fn-proc-desc :fn-proc-is-forward true)]))]
+      [iter {:forward true}]))]
  ["FUNC-PROC-BODY -> FUNCTION-BLOCKS& BEGIN-END-BLOCK semicolon"
-  (fn [[iter fn-proc-desc]]
-    (let [[iter fn-proc-decls] (FUNCTION-BLOCKS& [iter])
-          [iter main-func-proc-block] (BEGIN-END-BLOCK [iter])
+  (fn [[iter]]
+    (let [[iter locals] (FUNCTION-BLOCKS& [iter])
+          [iter body] (BEGIN-END-BLOCK [iter])
           [iter] (match [iter :token/semicolon])]
-      [iter (assoc fn-proc-desc :fn-proc-decls fn-proc-decls :main-func-proc-block main-func-proc-block)]))]
+      [iter {:locals locals :body body :forward false}]))]
  ["FUNCTION-BLOCKS& ->"
   identity]
  ["FUNCTION-BLOCKS& -> VAR-BLOCK FUNCTION-BLOCKS&"
@@ -69,11 +69,11 @@
  ["PROCEDURE -> procedure symbol ARGLIST semicolon FUNC-PROC-BODY"
   (fn [[iter]]
     (let [[iter] (match [iter :token/procedure])
-          [iter proc-name] (match [iter :token/symbol])
+          [iter name] (match [iter :token/symbol])
           [iter arglist] (ARGLIST [iter])
-          [iter] (match [iter :token/semicolon])]
-      (FUNC-PROC-BODY [iter {:proc-name proc-name
-                             :arglist arglist}])))]
+          [iter] (match [iter :token/semicolon])
+          [iter {:keys [locals body forward]}] (FUNC-PROC-BODY [iter])]
+      [iter (CProcedure. name arglist locals body forward)]))]
 
  ["FUNCALL -> symbol FUNCALL-ARGS"]
  ["FUNCALL-ARGS -> lparen FUNCALL-ARGS-INNER rparen"
@@ -100,12 +100,12 @@
  ["NUMBER-ARRAY-INDEX -> number"
   (fn [[iter]]
     (let [[iter num] (match [iter :token/number])]
-      [iter [:num num]]))]
+      [iter (CInteger. num)]))]
  ["NUMBER-ARRAY-INDEX -> sub number"
   (fn [[iter]]
     (let [[iter] (match [iter :token/sub])
           [iter num] (match [iter :token/number])]
-      [iter [:num (- num)]]))]
+      [iter (CInteger. (- num))]))]
  ["ARRAY-DECL -> array lbracket NUMBER-ARRAY-INDEX dotdot NUMBER-ARRAY-INDEX rbracket of symbol"
   (fn [[iter]]
     (let [[iter] (match [iter :token/array])
@@ -116,7 +116,7 @@
           [iter] (match [iter :token/rbracket])
           [iter] (match [iter :token/of])
           [iter type] (match [iter :token/symbol])]
-      [iter {:from from :to to :type type}]))]
+      [iter (CArrayType. from to type)]))]
  ["TYPE-SPECIFIER -> ARRAY-DECL"
   (fn [args]
     (ARRAY-DECL args))]
@@ -149,7 +149,7 @@
     (let [[iter arg-name] (match [iter :token/symbol])
           [iter] (match [iter :token/colon])
           [iter arg-type] (match [iter :token/symbol])]
-      [iter {:arg-name arg-name :arg-type arg-type}]))]
+      [iter (CArg. arg-name arg-type)]))]
 
  ["CONST-BLOCK -> const CONST-DECL CONST-DECLS&"
   (fn [[iter]]
@@ -162,8 +162,7 @@
           [iter] (match [iter :token/eq])
           [iter value] (LITERAL [iter])
           [iter] (match [iter :token/semicolon])]
-      [iter {:const-name const-name
-             :value      value}]))]
+      [iter (CConst. const-name value)]))]
  ["CONST-DECLS& ->"
   identity]
  ["CONST-DECLS& -> CONST-DECL CONST-DECLS&"
@@ -183,8 +182,7 @@
           [iter] (match [iter :token/colon])
           [iter typespec] (TYPE-SPECIFIER [iter])
           [iter] (match [iter :token/semicolon])]
-      [iter {:var-names var-names
-             :typespec  typespec}]))]
+      [iter (CVarDecl. var-names typespec)]))]
  ["VAR-NAMES& ->"
   identity]
  ["VAR-NAMES& -> comma symbol VAR-NAMES&"
@@ -205,8 +203,7 @@
     (let [[iter] (match [iter :token/lbracket])
           [iter index-expr] (EXPR [iter])
           [iter] (match [iter :token/rbracket])]
-      [iter {:array-name sym
-             :index-expr index-expr}]))]
+      [iter (CIndexOp. sym index-expr)]))]
 
  ["EXPR -> EXPR-OR"
   (fn [args]
@@ -222,7 +219,7 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/or])
           [iter rhs] (EXPR-EQ-NE [iter])]
-      (EXPR-AND' [iter {:or-lhs lhs :or-rhs rhs}])))]
+      (EXPR-AND' [iter (CLogOr. lhs rhs)])))]
 
  ["EXPR-AND -> EXPR-EQ-NE EXPR-AND'"
   (fn [[iter]]
@@ -234,7 +231,7 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/and])
           [iter rhs] (EXPR-EQ-NE [iter])]
-      (EXPR-AND' [iter {:and-lhs lhs :and-rhs rhs}])))]
+      (EXPR-AND' [iter (CLogAnd. lhs rhs)])))]
 
  ["EXPR-EQ-NE -> EXPR-CMP EXPR-EQ-NE'"
   (fn [[iter]]
@@ -246,12 +243,12 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/eq])
           [iter rhs] (EXPR-ADD [iter])]
-      (EXPR-CMP' [iter {:eq-lhs lhs :eq-rhs rhs}])))]
+      (EXPR-CMP' [iter (CCmpEq. lhs rhs)])))]
  ["EXPR-EQ-NE' -> ne EXPR-CMP EXPR-EQ-NE'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/ne])
           [iter rhs] (EXPR-ADD [iter])]
-      (EXPR-CMP' [iter {:ne-lhs lhs :ne-rhs rhs}])))]
+      (EXPR-CMP' [iter (CCmpNe. lhs rhs)])))]
 
  ["EXPR-CMP -> EXPR-ADD EXPR-CMP'"
   (fn [[iter]]
@@ -263,22 +260,22 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/lt])
           [iter rhs] (EXPR-ADD [iter])]
-      (EXPR-CMP' [iter {:lt-lhs lhs :lt-rhs rhs}])))]
+      (EXPR-CMP' [iter (CCmpLt. lhs rhs)])))]
  ["EXPR-CMP' -> le EXPR-ADD EXPR-CMP'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/le])
           [iter rhs] (EXPR-ADD [iter])]
-      (EXPR-CMP' [iter {:le-lhs lhs :le-rhs rhs}])))]
+      (EXPR-CMP' [iter (CCmpLe. lhs rhs)])))]
  ["EXPR-CMP' -> gt EXPR-ADD EXPR-CMP'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/gt])
           [iter rhs] (EXPR-ADD [iter])]
-      (EXPR-CMP' [iter {:gt-lhs lhs :gt-rhs rhs}])))]
+      (EXPR-CMP' [iter (CCmpGt. lhs rhs)])))]
  ["EXPR-CMP' -> ge EXPR-ADD EXPR-CMP'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/ge])
           [iter rhs] (EXPR-ADD [iter])]
-      (EXPR-CMP' [iter {:ge-lhs lhs :ge-rhs rhs}])))]
+      (EXPR-CMP' [iter (CCmpGe. lhs rhs)])))]
 
  ["EXPR-ADD -> EXPR-MUL EXPR-ADD'"
   (fn [[iter]]
@@ -290,14 +287,12 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/add])
           [iter rhs] (EXPR-MUL [iter])]
-      [iter {:add-lhs lhs
-             :add-rhs rhs}]))]
+      [iter (CArithmAdd. lhs rhs)]))]
  ["EXPR-ADD' -> sub EXPR-MUL EXPR-ADD'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/sub])
           [iter rhs] (EXPR-MUL [iter])]
-      [iter {:sub-lhs lhs
-             :sub-rhs rhs}]))]
+      [iter (CArithmSub. lhs rhs)]))]
 
  ["EXPR-MUL -> EXPR-UNARY EXPR-MUL'"
   (fn [[iter]]
@@ -309,20 +304,17 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/mul])
           [iter rhs] (EXPR-UNARY [iter])]
-      [iter {:mul-lhs lhs
-             :mul-rhs rhs}]))]
+      [iter (CArithmMul. lhs rhs)]))]
  ["EXPR-MUL' -> div EXPR-UNARY EXPR-MUL'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/div])
           [iter rhs] (EXPR-UNARY [iter])]
-      [iter {:div-lhs lhs
-             :div-rhs rhs}]))]
+      [iter (CArithmDiv. lhs rhs)]))]
  ["EXPR-MUL' -> mod EXPR-UNARY EXPR-MUL'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/mod])
           [iter rhs] (EXPR-UNARY [iter])]
-      [iter {:mod-lhs lhs
-             :mod-rhs rhs}]))]
+      [iter (CArithmMod. lhs rhs)]))]
 
  ["EXPR-UNARY -> EXPR-L0"
   (fn [args]
@@ -336,7 +328,7 @@
   (fn [[iter]]
     (let [[iter] (match [iter :token/sub])
           [iter expr] (EXPR-UNARY [iter])]
-      [iter [:neg expr]]))]
+      [iter (CArithmUnNeg. expr)]))]
 
  ["EXPR-L0 -> LITERAL"
   (fn [[iter]]
@@ -350,7 +342,7 @@
  ["EXPR-L0 -> symbol EXPR-SYM'"
   (fn [[iter]]
     (let [[iter sym] (EXPR-SYM' (match [iter :token/symbol]))]
-      [iter [:sym sym]]))]
+      [iter (CSymbol. sym)]))]
 
  ["EXPR-SYM' ->"
   identity]
@@ -360,17 +352,16 @@
  ["EXPR-SYM' -> FUNCALL-ARGS"
   (fn [[iter sym]]
     (let [[iter args] (FUNCALL-ARGS [iter])]
-      [iter {:fn-name sym
-             :args    args}]))]
+      [iter (CCall. sym args)]))]
 
  ["LITERAL -> string"
   (fn [[iter]]
     (let [[iter str] (match [iter :token/string])]
-      [iter [:string str]]))]
+      [iter (CString. str)]))]
  ["LITERAL -> number"
   (fn [[iter]]
-    (let [[iter str] (match [iter :token/number])]
-      [iter [:number str]]))]
+    (let [[iter num] (match [iter :token/number])]
+      [iter (CInteger. num)]))]
 
  ["FOR-LOOP -> for symbol assign EXPR FOR-LOOP-TAIL"
   (fn [[iter]]
@@ -378,28 +369,26 @@
           [iter iter-var] (match [iter :token/symbol])
           [iter] (match [iter :token/assign])
           [iter iter-var-init] (EXPR [iter])]
-      (FOR-LOOP-TAIL [iter {:for-iter-var      iter-var
-                            :for-iter-var-init iter-var-init}])))]
+      (FOR-LOOP-TAIL [iter {:iter-var      iter-var
+                            :iter-var-init (CInteger. iter-var-init)}])))]
  ["FOR-LOOP-TAIL -> to EXPR do PROCEDURAL-BLOCK"
   (fn [[iter for-decl]]
     (let [[iter] (match [iter :token/to])
           [iter iter-var-end] (EXPR [iter])
           [iter] (match [iter :token/do])
           [iter for-body] (PROCEDURAL-BLOCK [iter])]
-      [iter (assoc for-decl
-              :for-iter-var-end iter-var-end
-              :for-body for-body
-              :direction :to)]))]
+      [iter (p/map->CToFor (assoc for-decl
+                             :iter-var-end iter-var-end
+                             :body for-body))]))]
  ["FOR-LOOP-TAIL -> downto EXPR do PROCEDURAL-BLOCK"
   (fn [[iter for-decl]]
     (let [[iter] (match [iter :token/downto])
           [iter iter-var-end] (EXPR [iter])
           [iter] (match [iter :token/do])
           [iter for-body] (PROCEDURAL-BLOCK [iter])]
-      [iter (assoc for-decl
-              :for-iter-var-end iter-var-end
-              :for-body for-body
-              :direction :downto)]))]
+      [iter (p/map->CDowntoFor (assoc for-decl
+                                 :iter-var-end iter-var-end
+                                 :body for-body))]))]
 
  ["WHILE-LOOP -> while EXPR do PROCEDURAL-BLOCK"
   (fn [[iter]]
@@ -407,39 +396,36 @@
           [iter cond] (EXPR [iter])
           [iter] (match [iter :token/do])
           [iter while-body] (PROCEDURAL-BLOCK [iter])]
-      [iter {:while-cond cond
-             :while-body while-body}]))]
+      [iter (p/map->CWhile {:cond cond
+                            :body while-body})]))]
 
  ["ASSIGNMENT -> symbol ASSIGNMENT-RST"]
  ["ASSIGNMENT-RST -> assign EXPR"
   (fn [[iter target]]
     (let [[iter] (match [iter :token/assign])
           [iter rhs] (EXPR [iter])]
-      [iter {:assign-target target
-             :assign-value  rhs}]))]
+      [iter (CAssignment. target rhs)]))]
  ["ASSIGNMENT-RST -> INDEX-OP-INNER assign EXPR"
   (fn [[iter sym]]
     (let [[iter target] (INDEX-OP-INNER [iter sym])
           [iter] (match [iter :token/assign])
           [iter rhs] (EXPR [iter])]
-      [iter {:assign-target target
-             :assign-value  rhs}]))]
+      [iter (CAssignment. target rhs)]))]
 
- ["IF-ELSE-BLOCK -> if EXPR then PROCEDURAL-BLOCK THEN-BRANCH&"
+ ["IF-ELSE-BLOCK -> if EXPR then PROCEDURAL-BLOCK ELSE-BRANCH&"
   (fn [[iter]]
     (let [[iter] (match [iter :token/if])
           [iter cond] (EXPR [iter])
           [iter] (match [iter :token/then])
-          [iter then-block] (PROCEDURAL-BLOCK [iter])]
-      (THEN-BRANCH& [iter {:if   cond
-                           :then then-block}])))]
- ["THEN-BRANCH& ->"
+          [iter then-block] (PROCEDURAL-BLOCK [iter])
+          [iter else-block] (ELSE-BRANCH& [iter])]
+      [iter (CIfElse. cond then-block else-block)]))]
+ ["ELSE-BRANCH& ->"
   identity]
- ["THEN-BRANCH& -> else PROCEDURAL-BLOCK"
+ ["ELSE-BRANCH& -> else PROCEDURAL-BLOCK"
   (fn [[iter if-desc]]
-    (let [[iter] (match [iter :token/else])
-          [iter else-block] (PROCEDURAL-BLOCK [iter])]
-      [iter (assoc if-desc :else else-block)]))]
+    (let [[iter] (match [iter :token/else])]
+      (PROCEDURAL-BLOCK [iter])))]
 
  ["PROCEDURAL-BLOCK -> FOR-LOOP"
   (fn [args]
@@ -459,7 +445,7 @@
  ["PROCEDURAL-BLOCK -> exit"
   (fn [[iter]]
     (let [[iter] (match [iter :token/exit])]
-      [iter [:exit-command]]))]
+      [iter (CExit.)]))]
 
  ["FUNCALL-OR-ASSIGNMENT -> symbol FUNCALL-OR-ASSIGNMENT-RST"
   (fn [[iter]]
@@ -471,8 +457,7 @@
  ["FUNCALL-OR-ASSIGNMENT-RST -> FUNCALL-ARGS"
   (fn [[iter sym]]
     (let [[iter args] (FUNCALL-ARGS [iter])]
-      [iter {:fn-name sym
-             :args    args}]))]
+      [iter (CCall. sym args)]))]
 
  ["BEGIN-END-BLOCK -> begin PROCEDURAL-BLOCK BEGIN-END-BLOCK-RST end"
   (fn [[iter]]

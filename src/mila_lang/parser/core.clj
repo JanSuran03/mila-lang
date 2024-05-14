@@ -1,71 +1,125 @@
 (ns mila-lang.parser.core
   (:require [cheshire.core :as json]
             [clojure.string :as str]
-            [mila-lang.lexer.core :as lexer])
+            [clojure.edn :as edn]
+            [clojure.walk :as walk]
+            [clojure.pprint :as pp]
+            [mila-lang.lexer.core :as lexer]
+            [mila-lang.parser.core :as parser]
+            [mila-lang.parser.proto :as p])
   (:import (clojure.lang ExceptionInfo)
-           (java.io File)))
+           (java.awt Toolkit)
+           (java.awt.datatransfer StringSelection)
+           (java.io File)
+           (mila_lang.parser.proto CArg
+                                   CArithmAdd
+                                   CArithmDiv
+                                   CArithmMod
+                                   CArithmMul
+                                   CArithmSub
+                                   CArithmUnNeg
+                                   CArrayType
+                                   CAssignment
+                                   CCall
+                                   CCmpEq
+                                   CCmpGt
+                                   CCmpGe
+                                   CCmpLt
+                                   CCmpLe
+                                   CCmpNe
+                                   CConst
+                                   CDowntoFor
+                                   CExit
+                                   CFunction
+                                   CIfElse
+                                   CIndexOp
+                                   CInteger
+                                   CLogAnd
+                                   CLogOr
+                                   CProcedure
+                                   CProgram
+                                   CString
+                                   CSymbol
+                                   CToFor
+                                   CVarDecl
+                                   CWhile)))
 
 (def eps (keyword "ε"))
 
-(defn parse [filename]
-  (let [str->kw #(if (Character/isUpperCase ^Character (first %))
-                   (keyword %)
-                   (keyword "token" %))
-        grammar (->> (slurp "grammar.txt")
-                     str/split-lines
-                     (filter seq)
-                     (map-indexed (fn [i s]
-                                    (let [[rule product] (map str/trim (str/split s #"->"))
-                                          product (if (nil? product)
-                                                    nil
-                                                    (->> (str/split product #" ")
-                                                         (mapv str->kw)))]
-                                      [(inc i) [(keyword (str/trim rule)) product]])))
-                     (into {}))
-        ll1-parse-table (into (sorted-map) (json/decode (slurp "parse-table.json") str->kw))
-        tokens (lexer/lex filename)
-        xor (fn [x y] (if x (not y) y))]
-    (loop [stack [:S]
-           tokens tokens
-           left-derivation []
-           read-tokens []]
-      (let [[e1 e2] [(empty? stack) (empty? tokens)]]
-        (cond (and e1 e2)
-              {:left-derivation left-derivation}
+(defn copy [s]
+  (.. (Toolkit/getDefaultToolkit)
+      (getSystemClipboard)
+      (setContents (StringSelection. s) nil)))
 
-              (xor e1 e2)
-              (throw (ex-info "stack or tokens not empty" {:stack           stack
-                                                           :tokens          tokens
-                                                           :left-derivation left-derivation
-                                                           :trace           {:stack-peek (peek stack) :first-token (ffirst tokens)}
-                                                           :read-tokens     read-tokens}))
+(def char-at mila-lang.lexer.base/char-at)
 
-              (= (ffirst tokens) (peek stack))
-              (recur (pop stack) (next tokens) left-derivation (conj read-tokens (first tokens)))
+(def m {})
 
-              :else (if-let [rule-index (get-in ll1-parse-table [(peek stack) (ffirst tokens)])]
-                      (let [[_ rule-rhs :as whole-rule] (grammar rule-index)]
-                        (recur (into (pop stack) (reverse rule-rhs))
-                               tokens
-                               (conj left-derivation whole-rule)
-                               read-tokens))
-                      (throw (ex-info "Rule not found" {:stack           stack
-                                                        :tokens          tokens
-                                                        :left-derivation left-derivation
+(defn match [[token-queue token]]
+  (when (not= (ffirst token-queue) token)
+    (throw (ex-info "Match failed" {:expected token :actual (ffirst token-queue)})))
+  [(next token-queue) (second (first token-queue))])
 
-                                                        :read-tokens     read-tokens}))))))))
+(def str->kw #(if (Character/isUpperCase ^Character (first %))
+                (keyword %)
+                (keyword "token" %)))
 
-(defn parse-sample [filename] (parse (str "samples/" filename ".mila")))
+(defn transform [form]
+  (walk/postwalk
+    (fn [x]
+      (if (and (symbol? x)
+               (and (Character/isUpperCase ^Character (char-at (name x) 0))
+                    (not (identical? (char-at (name x) (dec (.length (name x)))) \.))))
+        (list #'m (keyword x))
+        x))
 
-(defn test-samples []
+    form))
+
+(defn create-function-mappings [grammar-file parse-table-file]
+  (let [expr-parse-table (json/decode (slurp parse-table-file) str->kw)]
+    (->> (slurp grammar-file)
+         edn/read-string
+         (map-indexed (fn [i [lhs f]]
+                        [(keyword (first (str/split lhs #" ->"))) (inc i) (transform f)]))
+         (group-by first)
+         (map (fn [[lhs xs]]
+                [lhs (mapv next xs)]))
+         (map (fn [[lhs xs]]
+                [lhs
+                 (let [fn-parse-table-functions (into {} (map (fn [[i f]]
+                                                                [i (eval f)]))
+                                                      xs)]
+                   (fn [[[[next-token]] :as args]]
+                     (if-let [rule-index (get-in expr-parse-table [lhs next-token])]
+                       ((fn-parse-table-functions rule-index) args)
+                       (throw (throw (ex-info "Could not find rule in the parse table"
+                                              {:non-terminal lhs
+                                               :next-token   next-token}))))))]))
+         (into {}))))
+
+(alter-var-root #'m (constantly (create-function-mappings "expr-grammar.edn" "expr-grammar-parse-table.json")))
+(alter-var-root #'m (constantly (create-function-mappings "attributed-grammar.edn" "parse-table.json")))
+
+(defn parse-file [file]
+  ((m :S) [(lexer/lex file)]))
+
+(defn copy-grammar [filename]
+  (->> (slurp filename)
+       edn/read-string
+       (map first)
+       (str/join "\n")
+       copy))
+
+(defn parse-samples []
   (let [samples (File. "samples")]
     (assert (and (.exists samples) (.isDirectory samples)) "Cannot open directory 'samples'")
     (doseq [^File child (.listFiles samples)
             :when (and (str/ends-with? (.getName child) ".mila")
                        (not (str/starts-with? (.getName child) "noparse")))]
-      (println "Parsing" (.getName child))
-      (try (parse child)
-           (println "Success!")
+      (try (parse-file child)
+           (println "Success parsing" (.getName child))
            (catch ExceptionInfo _
              (binding [*out* *err*]
                (println "Error parsing" (.getName child))))))))
+
+(time (parse-samples))

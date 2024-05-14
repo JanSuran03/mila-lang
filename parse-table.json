@@ -358,7 +358,7 @@
   "IF-ELSE-BLOCK": {
     "if": 89
   },
-  "THEN-BRANCH&": {
+  "ELSE-BRANCH&": {
     "else": 91,
     "end": 90,
     "semicolon": 90,
