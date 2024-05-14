@@ -1,0 +1,495 @@
+[["S -> program symbol semicolon TOP-LEVEL-BLOCK"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/program])
+          [iter prog-name] (match [iter :token/symbol])
+          [iter] (match [iter :token/semicolon])
+          [iter blocks] (TOP-LEVEL-BLOCK [iter []])]
+      {:blocks    blocks
+       :prog-name prog-name}))]
+
+ ["TOP-LEVEL-BLOCK -> BEGIN-END-BLOCK TOP-LEVEL-BLOCK-OR-END"
+  (fn [[iter blocks]]
+    (let [[iter block] (BEGIN-END-BLOCK [iter])]
+      (TOP-LEVEL-BLOCK-OR-END [iter (conj blocks block)])))]
+ ["TOP-LEVEL-BLOCK -> VAR-BLOCK TOP-LEVEL-BLOCK"
+  (fn [[iter blocks]]
+    (let [[iter block] (VAR-BLOCK [iter])]
+      (TOP-LEVEL-BLOCK [iter (conj blocks block)])))]
+ ["TOP-LEVEL-BLOCK -> CONST-BLOCK TOP-LEVEL-BLOCK"
+  (fn [[iter blocks]]
+    (let [[iter block] (CONST-BLOCK [iter])]
+      (TOP-LEVEL-BLOCK [iter (conj blocks block)])))]
+ ["TOP-LEVEL-BLOCK -> FUNCTION TOP-LEVEL-BLOCK"
+  (fn [[iter blocks]]
+    (let [[iter func] (FUNCTION [iter])]
+      (TOP-LEVEL-BLOCK [iter (conj blocks func)])))]
+ ["TOP-LEVEL-BLOCK -> PROCEDURE TOP-LEVEL-BLOCK"
+  (fn [[iter blocks]]
+    (let [[iter proc] (PROCEDURE [iter])]
+      (TOP-LEVEL-BLOCK [iter (conj blocks proc)])))]
+
+ ["TOP-LEVEL-BLOCK-OR-END -> dot eof"
+  (fn [[iter blocks]]
+    (let [[iter] (match [iter :token/dot])
+          [iter] (match [iter :token/eof])]
+      [iter blocks]))]
+ ["TOP-LEVEL-BLOCK-OR-END -> semicolon TOP-LEVEL-BLOCK"]
+
+ ["FUNCTION -> function symbol ARGLIST colon symbol semicolon FUNC-PROC-BODY"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/function])
+          [iter fn-name] (match [iter :token/symbol])
+          [iter arglist] (ARGLIST [iter])
+          [iter] (match [iter :token/colon])
+          [iter return-type] (match [iter :token/symbol])
+          [iter] (match [iter :token/semicolon])]
+      (FUNC-PROC-BODY [iter {:fn-name fn-name :arglist arglist :return-type return-type}])))]
+ ["FUNC-PROC-BODY -> forward semicolon"
+  (fn [[iter fn-proc-desc]]
+    (let [[iter] (match [iter :token/forward])
+          [iter] (match [iter :token/semicolon])]
+      [iter (assoc fn-proc-desc :fn-proc-is-forward true)]))]
+ ["FUNC-PROC-BODY -> FUNCTION-BLOCKS& BEGIN-END-BLOCK semicolon"
+  (fn [[iter fn-proc-desc]]
+    (let [[iter fn-proc-decls] (FUNCTION-BLOCKS& [iter])
+          [iter main-func-proc-block] (BEGIN-END-BLOCK [iter])
+          [iter] (match [iter :token/semicolon])]
+      [iter (assoc fn-proc-desc :fn-proc-decls fn-proc-decls :main-func-proc-block main-func-proc-block)]))]
+ ["FUNCTION-BLOCKS& ->"
+  identity]
+ ["FUNCTION-BLOCKS& -> VAR-BLOCK FUNCTION-BLOCKS&"
+  (fn [[iter func-blocks]]
+    (let [[iter block] (VAR-BLOCK [iter])]
+      (FUNCTION-BLOCKS& [iter (conj func-blocks block)])))]
+ ["FUNCTION-BLOCKS& -> CONST-BLOCK FUNCTION-BLOCKS&"
+  (fn [[iter func-blocks]]
+    (let [[iter block] (CONST-BLOCK [iter])]
+      (FUNCTION-BLOCKS& [iter (conj func-blocks block)])))]
+
+ ["PROCEDURE -> procedure symbol ARGLIST semicolon FUNC-PROC-BODY"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/procedure])
+          [iter proc-name] (match [iter :token/symbol])
+          [iter arglist] (ARGLIST [iter])
+          [iter] (match [iter :token/semicolon])]
+      (FUNC-PROC-BODY [iter {:proc-name proc-name
+                             :arglist arglist}])))]
+
+ ["FUNCALL -> symbol FUNCALL-ARGS"]
+ ["FUNCALL-ARGS -> lparen FUNCALL-ARGS-INNER rparen"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/lparen])
+          [iter args] (FUNCALL-ARGS-INNER [iter])
+          [iter] (match [iter :token/rparen])]
+      [iter args]))]
+ ["FUNCALL-ARGS-INNER ->"
+  identity]
+ ["FUNCALL-ARGS-INNER -> EXPR FUNCALL-ARGS-INNER2"
+  (fn [[iter]]
+    (let [[iter arg] (EXPR [iter])
+          [iter args] (FUNCALL-ARGS-INNER2 [iter [arg]])]
+      [iter args]))]
+ ["FUNCALL-ARGS-INNER2 ->"
+  identity]
+ ["FUNCALL-ARGS-INNER2 -> comma EXPR FUNCALL-ARGS-INNER2"
+  (fn [[iter call-args]]
+    (let [[iter] (match [iter :token/comma])
+          [iter next-arg] (EXPR [iter])]
+      (FUNCALL-ARGS-INNER2 [iter (conj call-args next-arg)])))]
+
+ ["NUMBER-ARRAY-INDEX -> number"
+  (fn [[iter]]
+    (let [[iter num] (match [iter :token/number])]
+      [iter [:num num]]))]
+ ["NUMBER-ARRAY-INDEX -> sub number"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/sub])
+          [iter num] (match [iter :token/number])]
+      [iter [:num (- num)]]))]
+ ["ARRAY-DECL -> array lbracket NUMBER-ARRAY-INDEX dotdot NUMBER-ARRAY-INDEX rbracket of symbol"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/array])
+          [iter] (match [iter :token/lbracket])
+          [iter from] (NUMBER-ARRAY-INDEX [iter])
+          [iter] (match [iter :token/dotdot])
+          [iter to] (NUMBER-ARRAY-INDEX [iter])
+          [iter] (match [iter :token/rbracket])
+          [iter] (match [iter :token/of])
+          [iter type] (match [iter :token/symbol])]
+      [iter {:from from :to to :type type}]))]
+ ["TYPE-SPECIFIER -> ARRAY-DECL"
+  (fn [args]
+    (ARRAY-DECL args))]
+ ["TYPE-SPECIFIER -> symbol"
+  (fn [[iter]]
+    (let [[iter sym] (match [iter :token/symbol])]
+      [iter [:sym sym]]))]
+
+ ["ARGLIST -> lparen ARGLIST-INNER rparen"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/lparen])
+          [iter arglist] (ARGLIST-INNER [iter []])
+          [iter] (match [iter :token/rparen])]
+      [iter arglist]))]
+ ["ARGLIST-INNER ->"
+  identity]
+ ["ARGLIST-INNER -> ARG-DECL ARGLIST-INNER2"
+  (fn [[iter arglist]]
+    (let [[iter next-arg-decl] (ARG-DECL [iter])]
+      (ARGLIST-INNER2 [iter (conj arglist next-arg-decl)])))]
+ ["ARGLIST-INNER2 ->"
+  identity]
+ ["ARGLIST-INNER2 -> semicolon ARG-DECL ARGLIST-INNER2"
+  (fn [[iter arglist]]
+    (let [[iter] (match [iter :token/semicolon])
+          [iter next-arg] (ARG-DECL [iter])]
+      (ARGLIST-INNER2 [iter (conj arglist next-arg)])))]
+ ["ARG-DECL -> symbol colon symbol"
+  (fn [[iter]]
+    (let [[iter arg-name] (match [iter :token/symbol])
+          [iter] (match [iter :token/colon])
+          [iter arg-type] (match [iter :token/symbol])]
+      [iter {:arg-name arg-name :arg-type arg-type}]))]
+
+ ["CONST-BLOCK -> const CONST-DECL CONST-DECLS&"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/const])
+          [iter const-decl] (CONST-DECL [iter])]
+      (CONST-DECLS& [iter [const-decl]])))]
+ ["CONST-DECL -> symbol eq LITERAL semicolon"
+  (fn [[iter]]
+    (let [[iter const-name] (match [iter :token/symbol])
+          [iter] (match [iter :token/eq])
+          [iter value] (LITERAL [iter])
+          [iter] (match [iter :token/semicolon])]
+      [iter {:const-name const-name
+             :value      value}]))]
+ ["CONST-DECLS& ->"
+  identity]
+ ["CONST-DECLS& -> CONST-DECL CONST-DECLS&"
+  (fn [[iter const-decls]]
+    (let [[iter next-decl] (CONST-DECL [iter])]
+      (CONST-DECLS& [iter (conj const-decls next-decl)])))]
+
+ ["VAR-BLOCK -> var VAR-DECL VAR-DECLS&"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/var])
+          [iter var-decl] (VAR-DECL [iter])]
+      (VAR-DECLS& [iter [var-decl]])))]
+ ["VAR-DECL -> symbol VAR-NAMES& colon TYPE-SPECIFIER semicolon"
+  (fn [[iter]]
+    (let [[iter first-var] (match [iter :token/symbol])
+          [iter var-names] (VAR-NAMES& [iter [first-var]])
+          [iter] (match [iter :token/colon])
+          [iter typespec] (TYPE-SPECIFIER [iter])
+          [iter] (match [iter :token/semicolon])]
+      [iter {:var-names var-names
+             :typespec  typespec}]))]
+ ["VAR-NAMES& ->"
+  identity]
+ ["VAR-NAMES& -> comma symbol VAR-NAMES&"
+  (fn [[iter var-names]]
+    (let [[iter] (match [iter :token/comma])
+          [iter next-var] (match [iter :token/symbol])]
+      (VAR-NAMES& [iter (conj var-names next-var)])))]
+ ["VAR-DECLS& ->"
+  identity]
+ ["VAR-DECLS& -> VAR-DECL VAR-DECLS&"
+  (fn [[iter var-decls]]
+    (let [[iter next-decl] (VAR-DECL [iter])]
+      (VAR-DECLS& [iter (conj var-decls next-decl)])))]
+
+ ["INDEX-OP -> symbol lbracket EXPR rbracket"]
+ ["INDEX-OP-INNER -> lbracket EXPR rbracket"
+  (fn [[iter sym]]
+    (let [[iter] (match [iter :token/lbracket])
+          [iter index-expr] (EXPR [iter])
+          [iter] (match [iter :token/rbracket])]
+      [iter {:array-name sym
+             :index-expr index-expr}]))]
+
+ ["EXPR -> EXPR-OR"
+  (fn [args]
+    (EXPR-OR args))]
+
+ ["EXPR-OR -> EXPR-AND EXPR-OR'"
+  (fn [[iter]]
+    (let [[iter expr] (EXPR-AND [iter])]
+      (EXPR-OR' [iter expr])))]
+ ["EXPR-OR' ->"
+  identity]
+ ["EXPR-OR' -> or EXPR-AND EXPR-OR'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/or])
+          [iter rhs] (EXPR-EQ-NE [iter])]
+      (EXPR-AND' [iter {:or-lhs lhs :or-rhs rhs}])))]
+
+ ["EXPR-AND -> EXPR-EQ-NE EXPR-AND'"
+  (fn [[iter]]
+    (let [[iter expr] (EXPR-EQ-NE [iter])]
+      (EXPR-AND' [iter expr])))]
+ ["EXPR-AND' ->"
+  identity]
+ ["EXPR-AND' -> and EXPR-EQ-NE EXPR-AND'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/and])
+          [iter rhs] (EXPR-EQ-NE [iter])]
+      (EXPR-AND' [iter {:and-lhs lhs :and-rhs rhs}])))]
+
+ ["EXPR-EQ-NE -> EXPR-CMP EXPR-EQ-NE'"
+  (fn [[iter]]
+    (let [[iter expr] (EXPR-CMP [iter])]
+      (EXPR-EQ-NE' [iter expr])))]
+ ["EXPR-EQ-NE' ->"
+  identity]
+ ["EXPR-EQ-NE' -> eq EXPR-CMP EXPR-EQ-NE'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/eq])
+          [iter rhs] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter {:eq-lhs lhs :eq-rhs rhs}])))]
+ ["EXPR-EQ-NE' -> ne EXPR-CMP EXPR-EQ-NE'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/ne])
+          [iter rhs] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter {:ne-lhs lhs :ne-rhs rhs}])))]
+
+ ["EXPR-CMP -> EXPR-ADD EXPR-CMP'"
+  (fn [[iter]]
+    (let [[iter expr] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter expr])))]
+ ["EXPR-CMP' ->"
+  identity]
+ ["EXPR-CMP' -> lt EXPR-ADD EXPR-CMP'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/lt])
+          [iter rhs] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter {:lt-lhs lhs :lt-rhs rhs}])))]
+ ["EXPR-CMP' -> le EXPR-ADD EXPR-CMP'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/le])
+          [iter rhs] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter {:le-lhs lhs :le-rhs rhs}])))]
+ ["EXPR-CMP' -> gt EXPR-ADD EXPR-CMP'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/gt])
+          [iter rhs] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter {:gt-lhs lhs :gt-rhs rhs}])))]
+ ["EXPR-CMP' -> ge EXPR-ADD EXPR-CMP'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/ge])
+          [iter rhs] (EXPR-ADD [iter])]
+      (EXPR-CMP' [iter {:ge-lhs lhs :ge-rhs rhs}])))]
+
+ ["EXPR-ADD -> EXPR-MUL EXPR-ADD'"
+  (fn [[iter]]
+    (let [[iter expr] (EXPR-MUL [iter])]
+      (EXPR-ADD' [iter expr])))]
+ ["EXPR-ADD' ->"
+  identity]
+ ["EXPR-ADD' -> add EXPR-MUL EXPR-ADD'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/add])
+          [iter rhs] (EXPR-MUL [iter])]
+      [iter {:add-lhs lhs
+             :add-rhs rhs}]))]
+ ["EXPR-ADD' -> sub EXPR-MUL EXPR-ADD'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/sub])
+          [iter rhs] (EXPR-MUL [iter])]
+      [iter {:sub-lhs lhs
+             :sub-rhs rhs}]))]
+
+ ["EXPR-MUL -> EXPR-UNARY EXPR-MUL'"
+  (fn [[iter]]
+    (let [[iter expr] (EXPR-UNARY [iter])]
+      (EXPR-MUL' [iter expr])))]
+ ["EXPR-MUL' ->"
+  identity]
+ ["EXPR-MUL' -> mul EXPR-UNARY EXPR-MUL'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/mul])
+          [iter rhs] (EXPR-UNARY [iter])]
+      [iter {:mul-lhs lhs
+             :mul-rhs rhs}]))]
+ ["EXPR-MUL' -> div EXPR-UNARY EXPR-MUL'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/div])
+          [iter rhs] (EXPR-UNARY [iter])]
+      [iter {:div-lhs lhs
+             :div-rhs rhs}]))]
+ ["EXPR-MUL' -> mod EXPR-UNARY EXPR-MUL'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/mod])
+          [iter rhs] (EXPR-UNARY [iter])]
+      [iter {:mod-lhs lhs
+             :mod-rhs rhs}]))]
+
+ ["EXPR-UNARY -> EXPR-L0"
+  (fn [args]
+    (EXPR-L0 args))]
+ ["EXPR-UNARY -> add EXPR-UNARY"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/add])
+          [iter expr] (EXPR-UNARY [iter])]
+      [iter expr]))]
+ ["EXPR-UNARY -> sub EXPR-UNARY"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/sub])
+          [iter expr] (EXPR-UNARY [iter])]
+      [iter [:neg expr]]))]
+
+ ["EXPR-L0 -> LITERAL"
+  (fn [[iter]]
+    (LITERAL [iter]))]
+ ["EXPR-L0 -> lparen EXPR rparen"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/lparen])
+          [iter expr] (EXPR [iter])
+          [iter] (match [iter :token/rparen])]
+      [iter expr]))]
+ ["EXPR-L0 -> symbol EXPR-SYM'"
+  (fn [[iter]]
+    (let [[iter sym] (EXPR-SYM' (match [iter :token/symbol]))]
+      [iter [:sym sym]]))]
+
+ ["EXPR-SYM' ->"
+  identity]
+ ["EXPR-SYM' -> INDEX-OP-INNER"
+  (fn [args]
+    (INDEX-OP-INNER args))]
+ ["EXPR-SYM' -> FUNCALL-ARGS"
+  (fn [[iter sym]]
+    (let [[iter args] (FUNCALL-ARGS [iter])]
+      [iter {:fn-name sym
+             :args    args}]))]
+
+ ["LITERAL -> string"
+  (fn [[iter]]
+    (let [[iter str] (match [iter :token/string])]
+      [iter [:string str]]))]
+ ["LITERAL -> number"
+  (fn [[iter]]
+    (let [[iter str] (match [iter :token/number])]
+      [iter [:number str]]))]
+
+ ["FOR-LOOP -> for symbol assign EXPR FOR-LOOP-TAIL"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/for])
+          [iter iter-var] (match [iter :token/symbol])
+          [iter] (match [iter :token/assign])
+          [iter iter-var-init] (EXPR [iter])]
+      (FOR-LOOP-TAIL [iter {:for-iter-var      iter-var
+                            :for-iter-var-init iter-var-init}])))]
+ ["FOR-LOOP-TAIL -> to EXPR do PROCEDURAL-BLOCK"
+  (fn [[iter for-decl]]
+    (let [[iter] (match [iter :token/to])
+          [iter iter-var-end] (EXPR [iter])
+          [iter] (match [iter :token/do])
+          [iter for-body] (PROCEDURAL-BLOCK [iter])]
+      [iter (assoc for-decl
+              :for-iter-var-end iter-var-end
+              :for-body for-body
+              :direction :to)]))]
+ ["FOR-LOOP-TAIL -> downto EXPR do PROCEDURAL-BLOCK"
+  (fn [[iter for-decl]]
+    (let [[iter] (match [iter :token/downto])
+          [iter iter-var-end] (EXPR [iter])
+          [iter] (match [iter :token/do])
+          [iter for-body] (PROCEDURAL-BLOCK [iter])]
+      [iter (assoc for-decl
+              :for-iter-var-end iter-var-end
+              :for-body for-body
+              :direction :downto)]))]
+
+ ["WHILE-LOOP -> while EXPR do PROCEDURAL-BLOCK"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/while])
+          [iter cond] (EXPR [iter])
+          [iter] (match [iter :token/do])
+          [iter while-body] (PROCEDURAL-BLOCK [iter])]
+      [iter {:while-cond cond
+             :while-body while-body}]))]
+
+ ["ASSIGNMENT -> symbol ASSIGNMENT-RST"]
+ ["ASSIGNMENT-RST -> assign EXPR"
+  (fn [[iter target]]
+    (let [[iter] (match [iter :token/assign])
+          [iter rhs] (EXPR [iter])]
+      [iter {:assign-target target
+             :assign-value  rhs}]))]
+ ["ASSIGNMENT-RST -> INDEX-OP-INNER assign EXPR"
+  (fn [[iter sym]]
+    (let [[iter target] (INDEX-OP-INNER [iter sym])
+          [iter] (match [iter :token/assign])
+          [iter rhs] (EXPR [iter])]
+      [iter {:assign-target target
+             :assign-value  rhs}]))]
+
+ ["IF-ELSE-BLOCK -> if EXPR then PROCEDURAL-BLOCK THEN-BRANCH&"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/if])
+          [iter cond] (EXPR [iter])
+          [iter] (match [iter :token/then])
+          [iter then-block] (PROCEDURAL-BLOCK [iter])]
+      (THEN-BRANCH& [iter {:if   cond
+                           :then then-block}])))]
+ ["THEN-BRANCH& ->"
+  identity]
+ ["THEN-BRANCH& -> else PROCEDURAL-BLOCK"
+  (fn [[iter if-desc]]
+    (let [[iter] (match [iter :token/else])
+          [iter else-block] (PROCEDURAL-BLOCK [iter])]
+      [iter (assoc if-desc :else else-block)]))]
+
+ ["PROCEDURAL-BLOCK -> FOR-LOOP"
+  (fn [args]
+    (FOR-LOOP args))]
+ ["PROCEDURAL-BLOCK -> WHILE-LOOP"
+  (fn [args]
+    (WHILE-LOOP args))]
+ ["PROCEDURAL-BLOCK -> IF-ELSE-BLOCK"
+  (fn [args]
+    (IF-ELSE-BLOCK args))]
+ ["PROCEDURAL-BLOCK -> FUNCALL-OR-ASSIGNMENT"
+  (fn [args]
+    (FUNCALL-OR-ASSIGNMENT args))]
+ ["PROCEDURAL-BLOCK -> BEGIN-END-BLOCK"
+  (fn [[iter]]
+    (BEGIN-END-BLOCK [iter]))]
+ ["PROCEDURAL-BLOCK -> exit"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/exit])]
+      [iter [:exit-command]]))]
+
+ ["FUNCALL-OR-ASSIGNMENT -> symbol FUNCALL-OR-ASSIGNMENT-RST"
+  (fn [[iter]]
+    (let [[iter sym] (match [iter :token/symbol])]
+      (FUNCALL-OR-ASSIGNMENT-RST [iter sym])))]
+ ["FUNCALL-OR-ASSIGNMENT-RST -> ASSIGNMENT-RST"
+  (fn [[iter sym]]
+    (ASSIGNMENT-RST [iter sym]))]
+ ["FUNCALL-OR-ASSIGNMENT-RST -> FUNCALL-ARGS"
+  (fn [[iter sym]]
+    (let [[iter args] (FUNCALL-ARGS [iter])]
+      [iter {:fn-name sym
+             :args    args}]))]
+
+ ["BEGIN-END-BLOCK -> begin PROCEDURAL-BLOCK BEGIN-END-BLOCK-RST end"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/begin])
+          [iter block] (PROCEDURAL-BLOCK [iter])
+          [iter blocks] (BEGIN-END-BLOCK-RST [iter [block]])
+          [iter] (match [iter :token/end])]
+      [iter blocks]))]
+ ["BEGIN-END-BLOCK-RST ->"
+  identity]
+ ["BEGIN-END-BLOCK-RST -> semicolon BEGIN-END-BLOCK-REC"
+  (fn [[iter blocks]]
+    (let [[iter] (match [iter :token/semicolon])]
+      (BEGIN-END-BLOCK-REC [iter blocks])))]
+ ["BEGIN-END-BLOCK-REC ->"
+  identity]
+ ["BEGIN-END-BLOCK-REC -> PROCEDURAL-BLOCK BEGIN-END-BLOCK-RST"
+  (fn [[iter blocks]]
+    (let [[iter next-block] (PROCEDURAL-BLOCK [iter])]
+      (BEGIN-END-BLOCK-RST [iter (conj blocks next-block)])))]]
