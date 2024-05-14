@@ -16,6 +16,8 @@
       (getSystemClipboard)
       (setContents (StringSelection. s) nil)))
 
+
+
 (def char-at mila-lang.lexer.base/char-at)
 
 (def m {})
@@ -29,8 +31,6 @@
                 (keyword %)
                 (keyword "token" %)))
 
-(def expr-parse-table (json/decode (slurp "expr-grammar-parse-table.json") str->kw))
-
 (defn transform [form]
   (walk/postwalk
     (fn [x]
@@ -41,22 +41,27 @@
 
     form))
 
-(defn evaluate-expr []
-  (let [token-input (lexer/lex "samples/noparse-expr.mila")
-        function-mappings (->> (slurp "expr-grammar.edn")
-                               edn/read-string
-                               (map-indexed (fn [i [lhs f]]
-                                              [(keyword (first (str/split lhs #" ->"))) (inc i) (transform f)]))
-                               (group-by first)
-                               (map (fn [[lhs xs]]
-                                      [lhs (mapv next xs)]))
-                               (map (fn [[lhs xs]]
-                                      [lhs (eval `(fn [[[[next-token#]] :as args#]]
-                                                    (if-let [rule-index# (get-in ~'expr-parse-table [~lhs next-token#])]
-                                                      (if-let [function# (case rule-index#
-                                                                           ~@(apply concat xs))]
-                                                        (function# args#)
-                                                        (println "ERROR 2!" [~lhs next-token#]))
-                                                      (println "ERROR 1!" [~lhs next-token#]))))])))]
-    (alter-var-root #'m (constantly (into {} function-mappings)))
-    ((m :S) [token-input])))
+(defn create-function-mappings [grammar-file parse-table-file]
+  (let [expr-parse-table (json/decode (slurp parse-table-file) str->kw)]
+    (->> (slurp grammar-file)
+         edn/read-string
+         (map-indexed (fn [i [lhs f]]
+                        [(keyword (first (str/split lhs #" ->"))) (inc i) (transform f)]))
+         (group-by first)
+         (map (fn [[lhs xs]]
+                [lhs (mapv next xs)]))
+         (map (fn [[lhs xs]]
+                [lhs
+                 (let [fn-parse-table-functions (into {} (map (fn [[i f]] [i (eval f)])) xs)]
+                   (fn [[[[next-token]] :as args]]
+                     (if-let [rule-index (get-in expr-parse-table [lhs next-token])]
+                       ((fn-parse-table-functions rule-index) args)
+                       (throw (throw (ex-info "Could not find rule in the parse table"
+                                              {:non-terminal lhs
+                                               :next-token   next-token}))))))]))
+         (into {}))))
+
+(alter-var-root #'m (constantly (create-function-mappings "expr-grammar.edn" "expr-grammar-parse-table.json")))
+
+(defn evaluate-expr [file]
+  ((m :S) [(lexer/lex file)]))
