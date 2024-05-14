@@ -1,0 +1,55 @@
+[["S -> E eof"
+  (fn [[iter lhs]]
+    (let [[iter lhs] (E [iter lhs])
+          [iter] (match [iter :token/eof])]
+      lhs))]
+
+ ["E -> F E'"
+  (fn [[iter lhs]]
+    (E' (F [iter lhs])))]
+
+ ["E' ->"
+  (fn [[iter lhs]] [iter lhs])]
+
+ ["E' -> add F E'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/add])
+          [iter rhs] (F [iter])]
+      (E' [iter (+ lhs rhs)])))]
+
+ ["E' -> sub F E'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/sub])
+          [iter rhs] (F [iter])]
+      (E' [iter (- lhs rhs)])))]
+
+ ["F -> G F'"
+  (fn [[iter lhs]]
+    (F' (G [iter lhs])))]
+
+ ["F' ->"
+  (fn [[iter lhs]] [iter lhs])]
+
+ ["F' -> mul G F'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/mul])
+          [iter rhs] (G [iter])]
+      (F' [iter (* lhs rhs)])))]
+
+ ["F' -> div G F'"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/div])
+          [iter rhs] (G [iter])]
+      (F' [iter (/ lhs rhs)])))]
+
+ ["G -> number"
+  (fn [[iter lhs]]
+    (match [iter :token/number]))]
+
+ ["G -> lparen E rparen"
+  (fn [[iter lhs]]
+    (let [[iter] (match [iter :token/lparen])
+          [iter lhs] (E [iter lhs])
+          [iter] (match [iter :token/rparen])]
+      [iter lhs]))]]
+
