@@ -125,10 +125,12 @@
     (TYPE-LITERAL args))]
  ["TYPE-LITERAL -> integer-TYPE"
   (fn [[iter]]
-    (match [iter :token/integer-TYPE]))]
+    (let [[iter] (match [iter :token/integer-TYPE])]
+      [iter :token/integer-TYPE]))]
  ["TYPE-LITERAL -> string-TYPE"
   (fn [[iter]]
-    (match [iter :token/string-TYPE]))]
+    (let [[iter] (match [iter :token/string-TYPE])]
+      [iter :token/string-TYPE]))]
 
  ["ARGLIST -> lparen ARGLIST-INNER rparen"
   (fn [[iter]]
@@ -346,11 +348,11 @@
       [iter expr]))]
  ["EXPR-L0 -> symbol EXPR-SYM'"
   (fn [[iter]]
-    (let [[iter sym] (EXPR-SYM' (match [iter :token/symbol]))]
-      [iter (CSymbol. sym)]))]
+    (EXPR-SYM' (match [iter :token/symbol])))]
 
  ["EXPR-SYM' ->"
-  identity]
+  (fn [[iter sym]]
+    [iter (CSymbol. sym)])]
  ["EXPR-SYM' -> INDEX-OP-INNER"
   (fn [args]
     (INDEX-OP-INNER args))]
