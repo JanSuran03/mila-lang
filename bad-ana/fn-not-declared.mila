@@ -1,0 +1,5 @@
+program fnNotDeclared;
+
+begin
+    foo('bar');
+end.

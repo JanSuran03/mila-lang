@@ -101,7 +101,7 @@
                                                :next-token   next-token}))))))]))
          (into {}))))
 
-(alter-var-root #'m (constantly (create-function-mappings "expr-grammar.edn" "expr-grammar-parse-table.json")))
+#_(alter-var-root #'m (constantly (create-function-mappings "expr-grammar.edn" "expr-grammar-parse-table.json")))
 (alter-var-root #'m (constantly (create-function-mappings "attributed-grammar.edn" "parse-table.json")))
 
 (defn parse-file [file]

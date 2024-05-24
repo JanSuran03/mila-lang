@@ -1,0 +1,17 @@
+program badCallArgs;
+
+var arr : array [0..10] of integer;
+var str : string;
+
+function add(x : integer; y : integer) : integer;
+const z = 1;
+const a = 2;
+    b = 3;
+begin
+    add := x + y + z + a;
+end;
+
+begin
+    writeln(arr[3]);
+    writeln(add(1, str));
+end.

@@ -82,6 +82,7 @@
       \) [[:token/rparen] (inc index)]
       \; [[:token/semicolon] (inc index)]
       \- [[:token/sub] (inc index)]
+      \/ [[:token/div] (inc index)]
       [sym-start-pat] (lex-impl :lexer/symbol input index)
       [pos-dig-pat] (lex-impl :lexer/int input index)
       (invalid-token (char-at input index)))))
@@ -111,7 +112,7 @@
          :token/var
          :token/while} token)
       (#:token{:integer :token/integer-TYPE
-               :string  :token/string-TYPE} token)))
+               :string  :string-TYPE} token)))
 
 (defn lex* [input]
   ((fn [input index tokens]

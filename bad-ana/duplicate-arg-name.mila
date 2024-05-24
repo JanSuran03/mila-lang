@@ -1,0 +1,10 @@
+program argShadow;
+
+function foo(a : integer; a : integer) : integer;
+begin
+    foo := a + a;
+end;
+
+begin
+    writeln(foo(1, 2));
+end.

@@ -1,5 +1,0 @@
-program testAssign;
-
-begin
-    arr[0] := 1 - 2 * A;
-end.

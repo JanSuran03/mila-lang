@@ -1,0 +1,10 @@
+program emptyProc;
+
+procedure proc();
+begin
+    exit;
+end;
+
+begin
+    proc();
+end.

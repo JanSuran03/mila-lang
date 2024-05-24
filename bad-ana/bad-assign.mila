@@ -1,0 +1,8 @@
+program assign;
+
+var x,y,z : integer;
+
+begin
+    x := 1;
+    arr[3] := 1;
+end.
