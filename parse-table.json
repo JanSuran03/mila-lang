@@ -61,341 +61,346 @@
   },
   "TYPE-SPECIFIER": {
     "array": 25,
-    "symbol": 26
+    "integer-TYPE": 26,
+    "string-TYPE": 26
+  },
+  "TYPE-LITERAL": {
+    "integer-TYPE": 27,
+    "string-TYPE": 28
   },
   "ARGLIST": {
-    "lparen": 27
+    "lparen": 29
   },
   "ARGLIST-INNER": {
-    "rparen": 28,
-    "symbol": 29,
-    "ε": 28
-  },
-  "ARGLIST-INNER2": {
     "rparen": 30,
-    "semicolon": 31,
+    "symbol": 31,
     "ε": 30
   },
+  "ARGLIST-INNER2": {
+    "rparen": 32,
+    "semicolon": 33,
+    "ε": 32
+  },
   "ARG-DECL": {
-    "symbol": 32
-  },
-  "CONST-BLOCK": {
-    "const": 33
-  },
-  "CONST-DECL": {
     "symbol": 34
   },
+  "CONST-BLOCK": {
+    "const": 35
+  },
+  "CONST-DECL": {
+    "symbol": 36
+  },
   "CONST-DECLS&": {
-    "begin": 35,
-    "const": 35,
-    "function": 35,
-    "procedure": 35,
-    "symbol": 36,
-    "var": 35,
-    "ε": 35
+    "begin": 37,
+    "const": 37,
+    "function": 37,
+    "procedure": 37,
+    "symbol": 38,
+    "var": 37,
+    "ε": 37
   },
   "VAR-BLOCK": {
-    "var": 37
+    "var": 39
   },
   "VAR-DECL": {
-    "symbol": 38
+    "symbol": 40
   },
   "VAR-NAMES&": {
-    "colon": 39,
-    "comma": 40,
-    "ε": 39
-  },
-  "VAR-DECLS&": {
-    "begin": 41,
-    "const": 41,
-    "function": 41,
-    "procedure": 41,
-    "symbol": 42,
-    "var": 41,
+    "colon": 41,
+    "comma": 42,
     "ε": 41
   },
+  "VAR-DECLS&": {
+    "begin": 43,
+    "const": 43,
+    "function": 43,
+    "procedure": 43,
+    "symbol": 44,
+    "var": 43,
+    "ε": 43
+  },
   "INDEX-OP": {
-    "symbol": 43
-  },
-  "INDEX-OP-INNER": {
-    "lbracket": 44
-  },
-  "EXPR": {
-    "add": 45,
-    "lparen": 45,
-    "number": 45,
-    "string": 45,
-    "sub": 45,
     "symbol": 45
   },
+  "INDEX-OP-INNER": {
+    "lbracket": 46
+  },
+  "EXPR": {
+    "add": 47,
+    "lparen": 47,
+    "number": 47,
+    "string": 47,
+    "sub": 47,
+    "symbol": 47
+  },
   "EXPR-OR": {
-    "add": 46,
-    "lparen": 46,
-    "number": 46,
-    "string": 46,
-    "sub": 46,
-    "symbol": 46
+    "add": 48,
+    "lparen": 48,
+    "number": 48,
+    "string": 48,
+    "sub": 48,
+    "symbol": 48
   },
   "EXPR-OR'": {
-    "comma": 47,
-    "do": 47,
-    "downto": 47,
-    "else": 47,
-    "end": 47,
-    "or": 48,
-    "rbracket": 47,
-    "rparen": 47,
-    "semicolon": 47,
-    "then": 47,
-    "to": 47,
-    "ε": 47
+    "comma": 49,
+    "do": 49,
+    "downto": 49,
+    "else": 49,
+    "end": 49,
+    "or": 50,
+    "rbracket": 49,
+    "rparen": 49,
+    "semicolon": 49,
+    "then": 49,
+    "to": 49,
+    "ε": 49
   },
   "EXPR-AND": {
-    "add": 49,
-    "lparen": 49,
-    "number": 49,
-    "string": 49,
-    "sub": 49,
-    "symbol": 49
+    "add": 51,
+    "lparen": 51,
+    "number": 51,
+    "string": 51,
+    "sub": 51,
+    "symbol": 51
   },
   "EXPR-AND'": {
-    "and": 51,
-    "comma": 50,
-    "do": 50,
-    "downto": 50,
-    "else": 50,
-    "end": 50,
-    "or": 50,
-    "rbracket": 50,
-    "rparen": 50,
-    "semicolon": 50,
-    "then": 50,
-    "to": 50,
-    "ε": 50
+    "and": 53,
+    "comma": 52,
+    "do": 52,
+    "downto": 52,
+    "else": 52,
+    "end": 52,
+    "or": 52,
+    "rbracket": 52,
+    "rparen": 52,
+    "semicolon": 52,
+    "then": 52,
+    "to": 52,
+    "ε": 52
   },
   "EXPR-EQ-NE": {
-    "add": 52,
-    "lparen": 52,
-    "number": 52,
-    "string": 52,
-    "sub": 52,
-    "symbol": 52
+    "add": 54,
+    "lparen": 54,
+    "number": 54,
+    "string": 54,
+    "sub": 54,
+    "symbol": 54
   },
   "EXPR-EQ-NE'": {
-    "and": 53,
-    "comma": 53,
-    "do": 53,
-    "downto": 53,
-    "else": 53,
-    "end": 53,
-    "eq": 54,
-    "ne": 55,
-    "or": 53,
-    "rbracket": 53,
-    "rparen": 53,
-    "semicolon": 53,
-    "then": 53,
-    "to": 53,
-    "ε": 53
+    "and": 55,
+    "comma": 55,
+    "do": 55,
+    "downto": 55,
+    "else": 55,
+    "end": 55,
+    "eq": 56,
+    "ne": 57,
+    "or": 55,
+    "rbracket": 55,
+    "rparen": 55,
+    "semicolon": 55,
+    "then": 55,
+    "to": 55,
+    "ε": 55
   },
   "EXPR-CMP": {
-    "add": 56,
-    "lparen": 56,
-    "number": 56,
-    "string": 56,
-    "sub": 56,
-    "symbol": 56
+    "add": 58,
+    "lparen": 58,
+    "number": 58,
+    "string": 58,
+    "sub": 58,
+    "symbol": 58
   },
   "EXPR-CMP'": {
-    "and": 57,
-    "comma": 57,
-    "do": 57,
-    "downto": 57,
-    "else": 57,
-    "end": 57,
-    "eq": 57,
-    "ge": 61,
-    "gt": 60,
-    "le": 59,
-    "lt": 58,
-    "ne": 57,
-    "or": 57,
-    "rbracket": 57,
-    "rparen": 57,
-    "semicolon": 57,
-    "then": 57,
-    "to": 57,
-    "ε": 57
+    "and": 59,
+    "comma": 59,
+    "do": 59,
+    "downto": 59,
+    "else": 59,
+    "end": 59,
+    "eq": 59,
+    "ge": 63,
+    "gt": 62,
+    "le": 61,
+    "lt": 60,
+    "ne": 59,
+    "or": 59,
+    "rbracket": 59,
+    "rparen": 59,
+    "semicolon": 59,
+    "then": 59,
+    "to": 59,
+    "ε": 59
   },
   "EXPR-ADD": {
-    "add": 62,
-    "lparen": 62,
-    "number": 62,
-    "string": 62,
-    "sub": 62,
-    "symbol": 62
+    "add": 64,
+    "lparen": 64,
+    "number": 64,
+    "string": 64,
+    "sub": 64,
+    "symbol": 64
   },
   "EXPR-ADD'": {
-    "add": 64,
-    "and": 63,
-    "comma": 63,
-    "do": 63,
-    "downto": 63,
-    "else": 63,
-    "end": 63,
-    "eq": 63,
-    "ge": 63,
-    "gt": 63,
-    "le": 63,
-    "lt": 63,
-    "ne": 63,
-    "or": 63,
-    "rbracket": 63,
-    "rparen": 63,
-    "semicolon": 63,
-    "sub": 65,
-    "then": 63,
-    "to": 63,
-    "ε": 63
+    "add": 66,
+    "and": 65,
+    "comma": 65,
+    "do": 65,
+    "downto": 65,
+    "else": 65,
+    "end": 65,
+    "eq": 65,
+    "ge": 65,
+    "gt": 65,
+    "le": 65,
+    "lt": 65,
+    "ne": 65,
+    "or": 65,
+    "rbracket": 65,
+    "rparen": 65,
+    "semicolon": 65,
+    "sub": 67,
+    "then": 65,
+    "to": 65,
+    "ε": 65
   },
   "EXPR-MUL": {
-    "add": 66,
-    "lparen": 66,
-    "number": 66,
-    "string": 66,
-    "sub": 66,
-    "symbol": 66
+    "add": 68,
+    "lparen": 68,
+    "number": 68,
+    "string": 68,
+    "sub": 68,
+    "symbol": 68
   },
   "EXPR-MUL'": {
-    "add": 67,
-    "and": 67,
-    "comma": 67,
-    "div": 69,
-    "do": 67,
-    "downto": 67,
-    "else": 67,
-    "end": 67,
-    "eq": 67,
-    "ge": 67,
-    "gt": 67,
-    "le": 67,
-    "lt": 67,
-    "mod": 70,
-    "mul": 68,
-    "ne": 67,
-    "or": 67,
-    "rbracket": 67,
-    "rparen": 67,
-    "semicolon": 67,
-    "sub": 67,
-    "then": 67,
-    "to": 67,
-    "ε": 67
+    "add": 69,
+    "and": 69,
+    "comma": 69,
+    "div": 71,
+    "do": 69,
+    "downto": 69,
+    "else": 69,
+    "end": 69,
+    "eq": 69,
+    "ge": 69,
+    "gt": 69,
+    "le": 69,
+    "lt": 69,
+    "mod": 72,
+    "mul": 70,
+    "ne": 69,
+    "or": 69,
+    "rbracket": 69,
+    "rparen": 69,
+    "semicolon": 69,
+    "sub": 69,
+    "then": 69,
+    "to": 69,
+    "ε": 69
   },
   "EXPR-UNARY": {
-    "add": 72,
-    "lparen": 71,
-    "number": 71,
-    "string": 71,
-    "sub": 73,
-    "symbol": 71
+    "add": 74,
+    "lparen": 73,
+    "number": 73,
+    "string": 73,
+    "sub": 75,
+    "symbol": 73
   },
   "EXPR-L0": {
-    "lparen": 75,
-    "number": 74,
-    "string": 74,
-    "symbol": 76
+    "lparen": 77,
+    "number": 76,
+    "string": 76,
+    "symbol": 78
   },
   "EXPR-SYM'": {
-    "add": 77,
-    "and": 77,
-    "comma": 77,
-    "div": 77,
-    "do": 77,
-    "downto": 77,
-    "else": 77,
-    "end": 77,
-    "eq": 77,
-    "ge": 77,
-    "gt": 77,
-    "lbracket": 78,
-    "le": 77,
-    "lparen": 79,
-    "lt": 77,
-    "mod": 77,
-    "mul": 77,
-    "ne": 77,
-    "or": 77,
-    "rbracket": 77,
-    "rparen": 77,
-    "semicolon": 77,
-    "sub": 77,
-    "then": 77,
-    "to": 77,
-    "ε": 77
+    "add": 79,
+    "and": 79,
+    "comma": 79,
+    "div": 79,
+    "do": 79,
+    "downto": 79,
+    "else": 79,
+    "end": 79,
+    "eq": 79,
+    "ge": 79,
+    "gt": 79,
+    "lbracket": 80,
+    "le": 79,
+    "lparen": 81,
+    "lt": 79,
+    "mod": 79,
+    "mul": 79,
+    "ne": 79,
+    "or": 79,
+    "rbracket": 79,
+    "rparen": 79,
+    "semicolon": 79,
+    "sub": 79,
+    "then": 79,
+    "to": 79,
+    "ε": 79
   },
   "LITERAL": {
-    "number": 81,
-    "string": 80
+    "number": 83,
+    "string": 82
   },
   "FOR-LOOP": {
-    "for": 82
+    "for": 84
   },
   "FOR-LOOP-TAIL": {
-    "downto": 84,
-    "to": 83
+    "downto": 86,
+    "to": 85
   },
   "WHILE-LOOP": {
-    "while": 85
+    "while": 87
   },
   "ASSIGNMENT": {
-    "symbol": 86
+    "symbol": 88
   },
   "ASSIGNMENT-RST": {
-    "assign": 87,
-    "lbracket": 88
+    "assign": 89,
+    "lbracket": 90
   },
   "IF-ELSE-BLOCK": {
-    "if": 89
+    "if": 91
   },
   "ELSE-BRANCH&": {
-    "else": 91,
-    "end": 90,
-    "semicolon": 90,
-    "ε": 90
+    "else": 93,
+    "end": 92,
+    "semicolon": 92,
+    "ε": 92
   },
   "PROCEDURAL-BLOCK": {
-    "begin": 96,
-    "exit": 97,
-    "for": 92,
-    "if": 94,
-    "symbol": 95,
-    "while": 93
+    "begin": 98,
+    "exit": 99,
+    "for": 94,
+    "if": 96,
+    "symbol": 97,
+    "while": 95
   },
   "FUNCALL-OR-ASSIGNMENT": {
-    "symbol": 98
+    "symbol": 100
   },
   "FUNCALL-OR-ASSIGNMENT-RST": {
-    "assign": 99,
-    "lbracket": 99,
-    "lparen": 100
+    "assign": 101,
+    "lbracket": 101,
+    "lparen": 102
   },
   "BEGIN-END-BLOCK": {
-    "begin": 101
+    "begin": 103
   },
   "BEGIN-END-BLOCK-RST": {
-    "end": 102,
-    "semicolon": 103,
-    "ε": 102
+    "end": 104,
+    "semicolon": 105,
+    "ε": 104
   },
   "BEGIN-END-BLOCK-REC": {
-    "begin": 105,
-    "end": 104,
-    "exit": 105,
-    "for": 105,
-    "if": 105,
-    "symbol": 105,
-    "while": 105,
-    "ε": 104
+    "begin": 107,
+    "end": 106,
+    "exit": 107,
+    "for": 107,
+    "if": 107,
+    "symbol": 107,
+    "while": 107,
+    "ε": 106
   }
 }

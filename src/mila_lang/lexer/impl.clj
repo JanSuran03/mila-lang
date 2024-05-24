@@ -139,6 +139,7 @@
     \t \tab
     \r \return
     \' \'
+    \b \backspace
     nil))
 
 (defmethod lexer/lex-impl :lexer/string

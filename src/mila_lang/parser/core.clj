@@ -20,6 +20,7 @@
                                    CArithmUnNeg
                                    CArrayType
                                    CAssignment
+                                   CBeginEndBlock
                                    CCall
                                    CCmpEq
                                    CCmpGt
@@ -32,6 +33,7 @@
                                    CExit
                                    CFunction
                                    CIfElse
+                                   CIndexAssignment
                                    CIndexOp
                                    CInteger
                                    CLogAnd
@@ -57,7 +59,9 @@
 
 (defn match [[token-queue token]]
   (when (not= (ffirst token-queue) token)
-    (throw (ex-info "Match failed" {:expected token :actual (ffirst token-queue)})))
+    (throw (ex-info "Match failed" {:expected        token
+                                    :actual          (ffirst token-queue)
+                                    :remaining-queue token-queue})))
   [(next token-queue) (second (first token-queue))])
 
 (def str->kw #(if (Character/isUpperCase ^Character (first %))
@@ -102,6 +106,12 @@
 
 (defn parse-file [file]
   ((m :S) [(lexer/lex file)]))
+
+(defn try-parse-file [expr]
+  (try (parse-file expr)
+       (catch ExceptionInfo e
+         (binding [*out* *err*]
+           (println (str (.getMessage e) ": " (ex-data e)))))))
 
 (defn copy-grammar [filename]
   (->> (slurp filename)

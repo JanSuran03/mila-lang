@@ -86,29 +86,32 @@
       [pos-dig-pat] (lex-impl :lexer/int input index)
       (invalid-token (char-at input index)))))
 
-(def word-tokens #{:token/and
-                   :token/array
-                   :token/begin
-                   :token/const
-                   :token/div
-                   :token/do
-                   :token/downto
-                   :token/else
-                   :token/end
-                   :token/exit
-                   :token/for
-                   :token/forward
-                   :token/function
-                   :token/if
-                   :token/mod
-                   :token/of
-                   :token/or
-                   :token/program
-                   :token/procedure
-                   :token/then
-                   :token/to
-                   :token/var
-                   :token/while})
+(defn word-tokens [token]
+  (or (#{:token/and
+         :token/array
+         :token/begin
+         :token/const
+         :token/div
+         :token/do
+         :token/downto
+         :token/else
+         :token/end
+         :token/exit
+         :token/for
+         :token/forward
+         :token/function
+         :token/if
+         :token/mod
+         :token/of
+         :token/or
+         :token/program
+         :token/procedure
+         :token/then
+         :token/to
+         :token/var
+         :token/while} token)
+      (#:token{:integer :token/integer-TYPE
+               :string  :token/string-TYPE} token)))
 
 (defn lex* [input]
   ((fn [input index tokens]
