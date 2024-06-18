@@ -7,4 +7,5 @@ begin
   writeln(A);
   writeln(B);
   writeln(C);
+  writeln('abc');
 end.

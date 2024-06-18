@@ -1,0 +1,5 @@
+program helloWorld;
+
+begin
+    writeln(42)
+end.

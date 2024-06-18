@@ -4,6 +4,10 @@ void dec_int(int *x) {
     --(*x);
 }
 
+void inc_int(int *x) {
+    ++(*x);
+}
+
 void read_int(int *x) {
     scanf("%d", x);
 }
