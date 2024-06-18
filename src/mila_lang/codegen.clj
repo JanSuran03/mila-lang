@@ -3,7 +3,29 @@
             [mila-lang.parser.core :as parser])
   (:import (clojure.lang ExceptionInfo)
            (java.io File)
-           (mila_lang.parser.proto CArithmAdd CArithmDiv CArithmMod CArithmMul CArithmSub CArithmUnNeg CArrayType CBeginEndBlock CCall CCmpEq CCmpGe CCmpGt CCmpLe CCmpLt CCmpNe CConst CIndexOp CInteger CProgram CString CSymbol CVarDecl)
+           (mila_lang.parser.proto CArithmAdd
+                                   CArithmDiv
+                                   CArithmMod
+                                   CArithmMul
+                                   CArithmSub
+                                   CArithmUnNeg
+                                   CArrayType
+                                   CBeginEndBlock
+                                   CCall
+                                   CCmpEq
+                                   CCmpGe
+                                   CCmpGt
+                                   CCmpLe
+                                   CCmpLt
+                                   CCmpNe
+                                   CConst
+                                   CIfElse
+                                   CIndexOp
+                                   CInteger
+                                   CProgram
+                                   CString
+                                   CSymbol
+                                   CVarDecl)
            (org.bytedeco.javacpp BytePointer PointerPointer)
            (org.bytedeco.llvm.LLVM LLVMBuilderRef LLVMContextRef LLVMModuleRef LLVMTypeRef LLVMValueRef)
            (org.bytedeco.llvm.global LLVM)))
@@ -255,6 +277,92 @@
                                               "")
                    :ret-clj-type :token/integer-TYPE)))
 
+(extend-type CCmpLt
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
+                                               LLVM/LLVMIntSLT
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CCmpLe
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
+                                               LLVM/LLVMIntSLE
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CCmpGt
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
+                                               LLVM/LLVMIntSGT
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CCmpGe
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
+                                               LLVM/LLVMIntSGE
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CCmpEq
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
+                                               LLVM/LLVMIntEQ
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CCmpNe
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
+                                               LLVM/LLVMIntNE
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CIfElse
+  ICodegen
+  (-codegen [{:keys [cond then else]} ^GenContext gen-ctx]
+    (let [^LLVMContextRef context (.-context gen-ctx)
+          ^LLVMBuilderRef builder (.-builder gen-ctx)
+          ^LLVMValueRef cond-IR (:ret-IR (-codegen cond gen-ctx))
+          current-block (LLVM/LLVMGetInsertBlock builder)
+          current-fn (LLVM/LLVMGetBasicBlockParent current-block)
+          then-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_then")
+          else-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_else")
+          merge-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_merge")]
+      (LLVM/LLVMBuildCondBr builder cond-IR then-block else-block)
+
+      (LLVM/LLVMPositionBuilderAtEnd builder then-block)
+      (-codegen then gen-ctx)
+      (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder)) ; does not end with "ret" instruction or similar
+        (LLVM/LLVMBuildBr builder merge-block))
+
+      (LLVM/LLVMPositionBuilderAtEnd builder else-block)
+      (-codegen else gen-ctx)
+      (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
+        (LLVM/LLVMBuildBr builder merge-block))
+
+      (LLVM/LLVMPositionBuilderAtEnd builder merge-block)
+      (assoc gen-ctx :ret-IR nil :ret-clj-type nil))))
+
 (defmacro ->err [& body]
   `(binding [*out* *err*]
      ~@body))
@@ -326,5 +434,6 @@
   (doseq [sample ["hello-42"
                   "hello-world"
                   "string-test"
-                  "arithmetics"]]
+                  "arithmetics"
+                  "conditionals"]]
     (run-sample (str "samples/" sample ".mila") (str sample ".exe"))))
