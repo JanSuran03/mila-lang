@@ -96,9 +96,9 @@
                    (fn [[[[next-token]] :as args]]
                      (if-let [rule-index (get-in expr-parse-table [lhs next-token])]
                        ((fn-parse-table-functions rule-index) args)
-                       (throw (throw (ex-info "Could not find rule in the parse table"
-                                              {:non-terminal lhs
-                                               :next-token   next-token}))))))]))
+                       (throw (ex-info "Could not find rule in the parse table"
+                                       {:non-terminal lhs
+                                        :next-token   next-token})))))]))
          (into {}))))
 
 #_(alter-var-root #'m (constantly (create-function-mappings "expr-grammar.edn" "expr-grammar-parse-table.json")))

@@ -28,7 +28,7 @@
 (defrecord CLogAnd [lhs rhs])
 (defrecord CLogOr [lhs rhs])
 (defrecord CProcedure [name arglist locals body forward])
-(defrecord CProgram [program-name program-blocks])
+(defrecord CProgram [program-name program-blocks main-block])
 (defrecord CString [value])
 (defrecord CSymbol [value])
 (defrecord CToFor [iter-var iter-var-init iter-var-end body])

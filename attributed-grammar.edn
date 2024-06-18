@@ -3,8 +3,9 @@
     (let [[iter] (match [iter :token/program])
           [iter prog-name] (match [iter :token/symbol])
           [iter] (match [iter :token/semicolon])
-          [iter blocks] (TOP-LEVEL-BLOCK [iter []])]
-      (CProgram. prog-name blocks)))]
+          [iter blocks] (TOP-LEVEL-BLOCK [iter []])
+          last (dec (count blocks))]
+      (CProgram. prog-name (subvec blocks 0 last) (nth blocks last))))]
 
  ["TOP-LEVEL-BLOCK -> BEGIN-END-BLOCK TOP-LEVEL-BLOCK-OR-END"
   (fn [[iter blocks]]
