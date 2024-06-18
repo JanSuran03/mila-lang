@@ -1,0 +1,11 @@
+program arithmetics;
+
+begin
+    write('1 + 2 = '); writeln(1 + 2);
+    write('1 - 2 = '); writeln(1 - 2);
+    write('2 * 3 = '); writeln(2 * 3);
+    write('20 / 3 = '); writeln(20 div 3);
+    write('20 % 3 = '); writeln(20 mod 3);
+    write('3 * (4 + 17 % 6) - (7 / 2) = '); writeln(3 * (4 + 17 % 6) - (7 / 2));
+    write('3 * -4 = '); writeln(3 * -  4);
+end.

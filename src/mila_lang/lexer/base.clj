@@ -83,6 +83,7 @@
       \; [[:token/semicolon] (inc index)]
       \- [[:token/sub] (inc index)]
       \/ [[:token/div] (inc index)]
+      \% [[:token/mod] (inc index)]
       [sym-start-pat] (lex-impl :lexer/symbol input index)
       [pos-dig-pat] (lex-impl :lexer/int input index)
       (invalid-token (char-at input index)))))

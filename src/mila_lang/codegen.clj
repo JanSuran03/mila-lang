@@ -3,7 +3,7 @@
             [mila-lang.parser.core :as parser])
   (:import (clojure.lang ExceptionInfo)
            (java.io File)
-           (mila_lang.parser.proto CArrayType CBeginEndBlock CCall CConst CIndexOp CInteger CProgram CString CSymbol CVarDecl)
+           (mila_lang.parser.proto CArithmAdd CArithmDiv CArithmMod CArithmMul CArithmSub CArithmUnNeg CArrayType CBeginEndBlock CCall CCmpEq CCmpGe CCmpGt CCmpLe CCmpLt CCmpNe CConst CIndexOp CInteger CProgram CString CSymbol CVarDecl)
            (org.bytedeco.javacpp BytePointer PointerPointer)
            (org.bytedeco.llvm.LLVM LLVMBuilderRef LLVMContextRef LLVMModuleRef LLVMTypeRef LLVMValueRef)
            (org.bytedeco.llvm.global LLVM)))
@@ -202,6 +202,59 @@
     (assoc gen-ctx :ret-IR (LLVM/LLVMConstInt (LLVM/LLVMInt32TypeInContext (.-context gen-ctx)) value 1)
                    :ret-clj-type :token/integer-TYPE)))     ; signed?
 
+(extend-type CArithmAdd
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildAdd ^LLVMBuilderRef (.-builder gen-ctx)
+                                              ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                              ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                              "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CArithmSub
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSub ^LLVMBuilderRef (.-builder gen-ctx)
+                                              ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                              ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                              "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CArithmMul
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildMul ^LLVMBuilderRef (.-builder gen-ctx)
+                                              ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                              ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                              "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CArithmDiv
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSDiv ^LLVMBuilderRef (.-builder gen-ctx)
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CArithmMod
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSRem ^LLVMBuilderRef (.-builder gen-ctx)
+                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
+                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               "")
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CArithmUnNeg
+  ICodegen
+  (-codegen [{:keys [val]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildNeg ^LLVMBuilderRef (.-builder gen-ctx)
+                                              ^LLVMValueRef (:ret-IR (-codegen val gen-ctx))
+                                              "")
+                   :ret-clj-type :token/integer-TYPE)))
+
 (defmacro ->err [& body]
   `(binding [*out* *err*]
      ~@body))
@@ -264,6 +317,14 @@
          (println "Fatal fail:" (.getMessage e))
          (.printStackTrace e))))
 
-(comment
-  (codegen/compile-and-run "samples/hello-42.mila" "hello-42.exe")
-  (codegen/compile-and-run "samples/hello-world.mila" "hello-world.exe"))
+(defn run-sample [src-file out-file]
+  (let [{:keys [out]} (compile-and-run src-file out-file)]
+    (printf "./%s\n" out-file)
+    (println out)))
+
+(defn run-samples []
+  (doseq [sample ["hello-42"
+                  "hello-world"
+                  "string-test"
+                  "arithmetics"]]
+    (run-sample (str "samples/" sample ".mila") (str sample ".exe"))))

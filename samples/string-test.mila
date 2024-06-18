@@ -1,0 +1,5 @@
+program helloWorld;
+
+begin
+    writeln('A quote\', tab\t, newline\n and return\r.');
+end.
