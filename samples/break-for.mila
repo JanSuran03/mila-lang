@@ -1,0 +1,14 @@
+program breakFor;
+
+var i, j : integer;
+
+begin
+    for i := 7 downto 0 do begin
+        for j := i + 1 to 2 * i do begin
+            if (i % 4) = (j % 4) then
+                break;
+            write(i); write(' '); writeln(j);
+        end;
+    if (i = 3) then break
+    end
+end.

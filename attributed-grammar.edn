@@ -454,6 +454,10 @@
   (fn [[iter]]
     (let [[iter] (match [iter :token/exit])]
       [iter (CExit.)]))]
+ ["PROCEDURAL-BLOCK -> break"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/break])]
+      [iter (CBreak.)]))]
 
  ["FUNCALL-OR-ASSIGNMENT -> symbol FUNCALL-OR-ASSIGNMENT-RST"
   (fn [[iter]]

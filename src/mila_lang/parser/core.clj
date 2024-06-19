@@ -21,6 +21,7 @@
                                    CArrayType
                                    CAssignment
                                    CBeginEndBlock
+                                   CBreak
                                    CCall
                                    CCmpEq
                                    CCmpGt
@@ -93,12 +94,13 @@
                  (let [fn-parse-table-functions (into {} (map (fn [[i f]]
                                                                 [i (eval f)]))
                                                       xs)]
-                   (fn [[[[next-token]] :as args]]
+                   (fn [[[[next-token] :as rst-tokens] :as args]]
                      (if-let [rule-index (get-in expr-parse-table [lhs next-token])]
                        ((fn-parse-table-functions rule-index) args)
                        (throw (ex-info "Could not find rule in the parse table"
                                        {:non-terminal lhs
-                                        :next-token   next-token})))))]))
+                                        :next-token   next-token
+                                        :rst-tokens   rst-tokens})))))]))
          (into {}))))
 
 #_(alter-var-root #'m (constantly (create-function-mappings "expr-grammar.edn" "expr-grammar-parse-table.json")))
@@ -113,8 +115,8 @@
          (binding [*out* *err*]
            (println (str (.getMessage e) ": " (ex-data e)))))))
 
-(defn copy-grammar [filename]
-  (->> (slurp filename)
+(defn copy-grammar []
+  (->> (slurp "attributed-grammar.edn")
        edn/read-string
        (map first)
        (str/join "\n")

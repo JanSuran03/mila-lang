@@ -13,7 +13,7 @@
                                    CArrayType
                                    CAssignment
                                    CBeginEndBlock
-                                   CCall
+                                   CBreak CCall
                                    CCmpEq
                                    CCmpGe
                                    CCmpGt
@@ -96,6 +96,8 @@
 (def ^:const ^String WRITE-STR "write_str")
 (def ^:const ^String WRITELN-INT "writeln_int")
 (def ^:const ^String WRITELN-STR "writeln_str")
+
+(def ^:dynamic *block-successors* ())
 
 (defn ^LLVMValueRef generate-global-string [^LLVMModuleRef module ^LLVMContextRef context ^String value var-name]
   (let [^String var-name (or var-name (str "str_ptr_" (System/nanoTime)))
@@ -494,7 +496,8 @@
         (LLVM/LLVMBuildCondBr builder ret-IR body-block exit-block))
       ; then
       (LLVM/LLVMPositionBuilderAtEnd builder body-block)
-      (-codegen body gen-ctx)
+      (binding [*block-successors* (cons exit-block *block-successors*)]
+        (-codegen body gen-ctx))
       (LLVM/LLVMBuildBr builder cond-block)
       ; end
       (LLVM/LLVMPositionBuilderAtEnd builder exit-block)
@@ -526,7 +529,8 @@
       (LLVM/LLVMBuildCondBr builder ret-IR body-block exit-block))
     ; then
     (LLVM/LLVMPositionBuilderAtEnd builder body-block)
-    (-codegen body gen-ctx)
+    (binding [*block-successors* (cons exit-block *block-successors*)]
+      (-codegen body gen-ctx))
     (LLVM/LLVMBuildBr builder loop-block)
     ; inc var
     (LLVM/LLVMPositionBuilderAtEnd builder loop-block)
@@ -545,6 +549,13 @@
   ICodegen
   (-codegen [{:keys [iter-var iter-var-init iter-var-end body]} ^GenContext gen-ctx]
     (gen-for-loop iter-var iter-var-init iter-var-end body gen-ctx true)))
+
+(extend-type CBreak
+  ICodegen
+  (-codegen [_ ^GenContext gen-ctx]
+    (if (seq *block-successors*)
+      (LLVM/LLVMBuildBr (.-builder gen-ctx) (first *block-successors*))
+      (throw (ex-info "No context to call 'break'" {})))))
 
 (defmacro ->err [& body]
   `(binding [*out* *err*]
@@ -608,9 +619,7 @@
   (let [src-file (str "samples/" file-name ".mila")
         IR-file (str "out/" file-name ".bc")
         out-file (str "out/" file-name ".exe")]
-    (let [{:keys [out]} (try (compile-and-run src-file IR-file out-file prog-sh-conf)
-                             (catch Throwable t
-                               (println (.getMessage t))))]
+    (let [{:keys [out]} (compile-and-run src-file IR-file out-file prog-sh-conf)]
       (if (and out expected (= (normalize-string out) (normalize-string expected)))
         (println "Success:" file-name)
         (binding [*out* *err*]
@@ -628,6 +637,8 @@
                                                              "20 % 3 = 2"
                                                              "3 * (4 + 17 % 6) - (7 / 2) = 24"
                                                              "3 * -4 = -12")}]
+                            ["break-for" {:expected (lines "7 8" "7 9" "7 10" "6 7" "6 8" "6 9" "5 6"
+                                                           "5 7" "5 8" "4 5" "4 6" "4 7" "3 4" "3 5")}]
                             ["conditionals" {:expected (lines "1 + 1 < 2: false"
                                                               "1 + 1 <= 2: true"
                                                               "1 + 1 > 2: false"
@@ -651,6 +662,8 @@
                             ["hello-world" {:expected "Hello, world!"}]
                             ["inputOutput" {:in "42" :expected "42"}]
                             ["multiple-decls" {:expected "40"}]
+                            ["primes" {:expected (lines "2" "3" "5" "7" "11" "13" "17" "19" "23" "29" "31" "37" "41"
+                                                        "43" "47" "53" "59" "61" "67" "71" "73" "79" "83" "89" "97")}]
                             ["single-branch-if" {:in "3" :expected "odd"}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]

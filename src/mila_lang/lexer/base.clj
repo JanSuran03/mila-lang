@@ -94,6 +94,7 @@
   (or (#{:token/and
          :token/array
          :token/begin
+         :token/break
          :token/const
          :token/div
          :token/do

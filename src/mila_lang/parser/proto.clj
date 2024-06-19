@@ -10,6 +10,7 @@
 (defrecord CArrayType [from to type])
 (defrecord CAssignment [lhs rhs])
 (defrecord CBeginEndBlock [blocks])
+(defrecord CBreak [])
 (defrecord CCall [target args])
 (defrecord CCmpEq [lhs rhs])
 (defrecord CCmpGt [lhs rhs])

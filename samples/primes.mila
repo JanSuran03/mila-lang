@@ -1,0 +1,21 @@
+program primes;
+
+var p, i, isprime : integer;
+
+begin
+    for p := 2 to 100 do begin
+        isprime := 1;
+        i := 2;
+
+        while i * i <= p do begin
+            if p % i = 0 then begin
+                isprime := 0;
+                break;
+            end;
+            inc(i);
+        end;
+
+        if isprime = 1 then
+            writeln(p);
+    end
+end.

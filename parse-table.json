@@ -371,6 +371,7 @@
   },
   "PROCEDURAL-BLOCK": {
     "begin": 98,
+    "break": 100,
     "exit": 99,
     "for": 94,
     "if": 96,
@@ -378,29 +379,30 @@
     "while": 95
   },
   "FUNCALL-OR-ASSIGNMENT": {
-    "symbol": 100
+    "symbol": 101
   },
   "FUNCALL-OR-ASSIGNMENT-RST": {
-    "assign": 101,
-    "lbracket": 101,
-    "lparen": 102
+    "assign": 102,
+    "lbracket": 102,
+    "lparen": 103
   },
   "BEGIN-END-BLOCK": {
-    "begin": 103
+    "begin": 104
   },
   "BEGIN-END-BLOCK-RST": {
-    "end": 104,
-    "semicolon": 105,
-    "ε": 104
+    "end": 105,
+    "semicolon": 106,
+    "ε": 105
   },
   "BEGIN-END-BLOCK-REC": {
-    "begin": 107,
-    "end": 106,
-    "exit": 107,
-    "for": 107,
-    "if": 107,
-    "symbol": 107,
-    "while": 107,
-    "ε": 106
+    "begin": 108,
+    "break": 108,
+    "end": 107,
+    "exit": 108,
+    "for": 108,
+    "if": 108,
+    "symbol": 108,
+    "while": 108,
+    "ε": 107
   }
 }
