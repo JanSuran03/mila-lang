@@ -21,12 +21,14 @@
                                    CCmpLt
                                    CCmpNe
                                    CConst
+                                   CDowntoFor
                                    CIfElse
                                    CIndexOp
                                    CInteger
                                    CProgram
                                    CString
                                    CSymbol
+                                   CToFor
                                    CVarDecl
                                    CWhile)
            (org.bytedeco.javacpp BytePointer PointerPointer)
@@ -445,11 +447,12 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (if-let [sym ((.-table-of-symbols gen-ctx) lhs)]
       (if (= (:symbol/kind sym) :symbol-kind/variable)
-        (let [{:keys [ret-IR]} (-codegen rhs gen-ctx)]
+        (let [{:keys [ret-IR ret-clj-type]} (-codegen rhs gen-ctx)]
           (let [^LLVMModuleRef module (.-module gen-ctx)
-                ^LLVMBuilderRef builder (.-builder gen-ctx)]
+                ^LLVMBuilderRef builder (.-builder gen-ctx)
+                ^LLVMContextRef context (.-context gen-ctx)]
             (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
-              (do (LLVM/LLVMBuildStore builder ret-IR global-var)
+              (do (LLVM/LLVMBuildStore builder (second (unwrap-pointer-type&value ret-clj-type builder context ret-IR)) global-var)
                   gen-ctx)
               (throw (ex-info "Global variable not found" {:symbol-name lhs})))))
         (throw (ex-info "Cannot assign to a non-variable" {:symbol-name lhs
@@ -493,6 +496,52 @@
       ; end
       (LLVM/LLVMPositionBuilderAtEnd builder exit-block)
       gen-ctx)))
+
+(defn gen-for-loop [iter-var iter-var-init iter-var-end body ^GenContext gen-ctx is-downto?]
+  (let [^LLVMContextRef context (.-context gen-ctx)
+        ^LLVMBuilderRef builder (.-builder gen-ctx)
+        function (LLVM/LLVMGetBasicBlockParent (LLVM/LLVMGetInsertBlock builder))
+        init-block (LLVM/LLVMAppendBasicBlockInContext context function "for_init")
+        cond-block (LLVM/LLVMAppendBasicBlockInContext context function "for_cond")
+        body-block (LLVM/LLVMAppendBasicBlockInContext context function "for_body")
+        loop-block (LLVM/LLVMAppendBasicBlockInContext context function "for_loop")
+        exit-block (LLVM/LLVMAppendBasicBlockInContext context function "for_exit")
+        break-cond (if is-downto?
+                     (CCmpGt. (CSymbol. iter-var) iter-var-end)
+                     (CCmpLt. (CSymbol. iter-var) iter-var-end))
+        loop-inc-expr (if is-downto?
+                        (CArithmSub. (CSymbol. iter-var) (CInteger. 1))
+                        (CArithmAdd. (CSymbol. iter-var) (CInteger. 1)))]
+    ; init var
+    (LLVM/LLVMBuildBr builder init-block)
+    (LLVM/LLVMPositionBuilderAtEnd builder init-block)
+    (-codegen (CAssignment. iter-var iter-var-init) gen-ctx)
+    (LLVM/LLVMBuildBr builder cond-block)
+    ; if (cond)
+    (LLVM/LLVMPositionBuilderAtEnd builder cond-block)
+    (let [{:keys [ret-IR]} (-codegen break-cond gen-ctx)]
+      (LLVM/LLVMBuildCondBr builder ret-IR body-block exit-block))
+    ; then
+    (LLVM/LLVMPositionBuilderAtEnd builder body-block)
+    (-codegen body gen-ctx)
+    (LLVM/LLVMBuildBr builder loop-block)
+    ; inc var
+    (LLVM/LLVMPositionBuilderAtEnd builder loop-block)
+    (-codegen (CAssignment. iter-var loop-inc-expr) gen-ctx)
+    (LLVM/LLVMBuildBr builder cond-block)
+    ; end
+    (LLVM/LLVMPositionBuilderAtEnd builder exit-block)
+    gen-ctx))
+
+(extend-type CToFor
+  ICodegen
+  (-codegen [{:keys [iter-var iter-var-init iter-var-end body]} ^GenContext gen-ctx]
+    (gen-for-loop iter-var iter-var-init iter-var-end body gen-ctx false)))
+
+(extend-type CDowntoFor
+  ICodegen
+  (-codegen [{:keys [iter-var iter-var-init iter-var-end body]} ^GenContext gen-ctx]
+    (gen-for-loop iter-var iter-var-init iter-var-end body gen-ctx true)))
 
 (defmacro ->err [& body]
   `(binding [*out* *err*]
@@ -585,6 +634,16 @@
                             ["consts" {:expected (lines "10\n16\n8\nabcdef")}]
                             ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines "10" "13" "23" "3" "330" "2")}]
+                            ["factorialCycle" {:in "5" :expected "120"}]
+                            ["for-loops" {:expected (lines "0,0"
+                                                           "1,0" "1,1"
+                                                           "2,0" "2,1" "2,2"
+                                                           "3,0" "3,1" "3,2" "3,3"
+                                                           "midpoint"
+                                                           "0,0"
+                                                           "1,1" "1,0"
+                                                           "2,2" "2,1" "2,0"
+                                                           "3,3" "3,2" "3,1" "3,0")}]
                             ["hello-42" {:expected "42"}]
                             ["hello-world" {:expected "Hello, world!"}]
                             ["inputOutput" {:in "42" :expected "42"}]

@@ -378,7 +378,7 @@
           [iter] (match [iter :token/assign])
           [iter iter-var-init] (EXPR [iter])]
       (FOR-LOOP-TAIL [iter {:iter-var      iter-var
-                            :iter-var-init (CInteger. iter-var-init)}])))]
+                            :iter-var-init iter-var-init}])))]
  ["FOR-LOOP-TAIL -> to EXPR do PROCEDURAL-BLOCK"
   (fn [[iter for-decl]]
     (let [[iter] (match [iter :token/to])

@@ -1,0 +1,17 @@
+program for_loops;
+
+var I, J : integer;
+
+begin
+    for I := 0 to 4 do
+        for J := 0 to I + 1 do begin
+            write(I); write(','); writeln(J);
+        end;
+
+    writeln('midpoint');
+
+    for I := 0 to 4 do
+        for J := I downto -1 do begin
+            write(I); write(','); writeln(J);
+        end;
+end.
