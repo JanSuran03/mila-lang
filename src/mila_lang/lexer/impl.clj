@@ -160,3 +160,21 @@
                                                   (char-at input index)
                                                   " while reading string " buf))))))
           (recur (str buf ch) (inc index)))))))
+
+(defmethod lexer/lex-impl :lexer/line-comment
+  [_ input index]
+  (loop [index (inc index)]
+    (if (eof? input index)
+      [[:token/eof] index]
+      (case (char-at input index)
+        \newline (lexer/lex-impl :lexer/default input (inc index))
+        (recur (inc index))))))
+
+(defmethod lexer/lex-impl :lexer/block-comment
+  [_ input index]
+  (loop [index (inc index)]
+    (if (eof? input index)
+      (throw (RuntimeException. (str "End of file while reading a block comment.")))
+      (case (char-at input index)
+        \} (lexer/lex-impl :lexer/default input (inc index))
+        (recur (inc index))))))

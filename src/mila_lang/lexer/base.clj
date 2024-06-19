@@ -84,6 +84,8 @@
       \- [[:token/sub] (inc index)]
       \/ [[:token/div] (inc index)]
       \% [[:token/mod] (inc index)]
+      \# (lex-impl :lexer/line-comment input index)
+      \{ (lex-impl :lexer/block-comment input index)
       [sym-start-pat] (lex-impl :lexer/symbol input index)
       [pos-dig-pat] (lex-impl :lexer/int input index)
       (invalid-token (char-at input index)))))
