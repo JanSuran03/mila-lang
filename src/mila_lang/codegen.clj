@@ -456,35 +456,30 @@
         (sh/sh "clang" "-c" in "-o" out "-target" target-triple "-Wno-override-module"))
     {:exit 0}))
 
-(defn compile-and-run [source-file out-file]
-  (let [IR-file (str (.getName (File. ^String source-file)) ".bc")
-        externs "externs/io.c"
-        externs-out "externs/io.o"]
+(defn compile-and-run [source-file IR-file out-file]
+  (let [externs "externs/io.c"
+        externs-out "out/io.o"]
     (codegen source-file IR-file)
     (with-sh-err
       (compile-cached externs externs-out)
       (sh/sh "clang" "-c" source-file "-o" IR-file "-target" target-triple "-Wno-override-module")
-      (sh/sh "clang" IR-file "externs/io.o" "-o" out-file "-target" target-triple)
+      (sh/sh "clang" IR-file externs-out "-o" out-file "-target" target-triple)
       (sh/sh (str "./" out-file)))))
 
-(defn sample []
-  (try (compile-and-run "samples/hello-world.mila" "hello-world.exe")
-       (catch ExceptionInfo e
-         (println (str "Fail ex-info (" (ex-message e) "), cause: " (ex-data e))))
-       (catch Exception e
-         (println "Fatal fail:" (.getMessage e))
-         (.printStackTrace e))))
-
-(defn run-sample [src-file out-file]
-  (let [{:keys [out]} (compile-and-run src-file out-file)]
-    (printf "./%s\n" out-file)
-    (println out)))
+(defn run-sample [file-name]
+  (let [src-file (str "samples/" file-name ".mila")
+        IR-file (str "out/" file-name ".bc")
+        out-file (str "out/" file-name ".exe")]
+    (let [{:keys [out]} (compile-and-run src-file IR-file out-file)]
+      (printf "./%s\n" out-file)
+      (println out))))
 
 (defn run-samples []
+  (.mkdir (File. "out"))
   (doseq [sample ["hello-42"
                   "hello-world"
                   "string-test"
                   "arithmetics"
                   "conditionals"
                   "vars"]]
-    (run-sample (str "samples/" sample ".mila") (str sample ".exe"))))
+    (run-sample sample)))
