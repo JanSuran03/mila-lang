@@ -1,0 +1,13 @@
+program while_print;
+
+var counter : integer;
+
+begin
+    readln(counter);
+    while counter > 0 do
+    begin
+        writeln(counter);
+        dec(counter);
+    end;
+    writeln('Happy New year!');
+end.

@@ -27,7 +27,8 @@
                                    CProgram
                                    CString
                                    CSymbol
-                                   CVarDecl)
+                                   CVarDecl
+                                   CWhile)
            (org.bytedeco.javacpp BytePointer PointerPointer)
            (org.bytedeco.llvm.LLVM LLVMBuilderRef LLVMContextRef LLVMModuleRef LLVMTypeRef LLVMValueRef)
            (org.bytedeco.llvm.global LLVM)))
@@ -68,7 +69,7 @@
     (throw (ex-info "Unknown type for variable declaration" {:clj-type clj-type}))))
 
 (defn pointer-arg-function? [target]
-  (#{"read_int"} target))
+  (#{"read_int" "dec_int" "inc_int"} target))
 
 (defn with-context [^String module-name f]
   (with-open [context (LLVM/LLVMContextCreate)]
@@ -151,6 +152,8 @@
                 "writeln_str"
                 "writeln_int")
     "readln" "read_int"
+    "dec" "dec_int"
+    "inc" "inc_int"
     fname))
 
 (defn- prepare-context [module-name]
@@ -469,6 +472,28 @@
                                                     :symbol-kind (:symbol/kind sym)})))
       (throw (ex-info "Symbol not declared in the context" {:symbol-name value})))))
 
+(extend-type CWhile
+  ICodegen
+  (-codegen [{:keys [cond body]} ^GenContext gen-ctx]
+    (let [^LLVMContextRef context (.-context gen-ctx)
+          ^LLVMBuilderRef builder (.-builder gen-ctx)
+          function (LLVM/LLVMGetBasicBlockParent (LLVM/LLVMGetInsertBlock builder))
+          cond-block (LLVM/LLVMAppendBasicBlockInContext context function "while_cond")
+          body-block (LLVM/LLVMAppendBasicBlockInContext context function "while_body")
+          exit-block (LLVM/LLVMAppendBasicBlockInContext context function "while_exit")]
+      ; if (cond)
+      (LLVM/LLVMBuildBr builder cond-block)
+      (LLVM/LLVMPositionBuilderAtEnd builder cond-block)
+      (let [{:keys [ret-IR]} (-codegen cond gen-ctx)]
+        (LLVM/LLVMBuildCondBr builder ret-IR body-block exit-block))
+      ; then
+      (LLVM/LLVMPositionBuilderAtEnd builder body-block)
+      (-codegen body gen-ctx)
+      (LLVM/LLVMBuildBr builder cond-block)
+      ; end
+      (LLVM/LLVMPositionBuilderAtEnd builder exit-block)
+      gen-ctx)))
+
 (defmacro ->err [& body]
   `(binding [*out* *err*]
      ~@body))
@@ -532,7 +557,8 @@
         IR-file (str "out/" file-name ".bc")
         out-file (str "out/" file-name ".exe")]
     (let [{:keys [out]} (try (compile-and-run src-file IR-file out-file prog-sh-conf)
-                             (catch Throwable _ nil))]
+                             (catch Throwable t
+                               (println (.getMessage t))))]
       (if (and out expected (= (normalize-string out) (normalize-string expected)))
         (println "Success:" file-name)
         (binding [*out* *err*]
@@ -557,14 +583,17 @@
                                                               "1 + 1 == 2: true"
                                                               "1 + 1 != 2: false")}]
                             ["consts" {:expected (lines "10\n16\n8\nabcdef")}]
+                            ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines "10" "13" "23" "3" "330" "2")}]
                             ["hello-42" {:expected "42"}]
                             ["hello-world" {:expected "Hello, world!"}]
                             ["inputOutput" {:in "42" :expected "42"}]
+                            ["multiple-decls" {:expected "40"}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]
                             ["vars" {:expected (lines "x := 3, y := 4"
                                                       "x + y = 7"
                                                       "y := y * y"
-                                                      "x + y = 19")}]])]
+                                                      "x + y = 19")}]
+                            ["while-print" {:in "5" :expected (lines "5" "4" "3" "2" "1" "Happy New year!")}]])]
     (run-sample sample)))
