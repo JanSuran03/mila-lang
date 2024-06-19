@@ -1,5 +1,0 @@
-program expressions_3;
-
-begin
-    writeln(1 + 2 + 3);
-end.

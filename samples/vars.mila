@@ -1,0 +1,12 @@
+program vars;
+
+var x, y : integer;
+
+begin
+    writeln(x + y);
+    x := 3;
+    y := 4;
+    writeln(x + y);
+    y := y * y;
+    writeln(x + y);
+end.
