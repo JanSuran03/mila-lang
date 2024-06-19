@@ -3,10 +3,13 @@ program vars;
 var x, y : integer;
 
 begin
-    writeln(x + y);
     x := 3;
     y := 4;
+    writeln('x := 3, y := 4');
+    write('x + y = ');
     writeln(x + y);
     y := y * y;
+    writeln('y := y * y');
+    write('x + y = ');
     writeln(x + y);
 end.

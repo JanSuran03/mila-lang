@@ -41,15 +41,33 @@
 (defn ^LLVMTypeRef get-llvm-type [^LLVMContextRef ctx clj-type]
   (case clj-type
     :token/integer-TYPE (LLVM/LLVMInt32TypeInContext ctx)
+    :token/int-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt32TypeInContext ctx) 0)
     :string-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext ctx) 0)
     :void-TYPE (LLVM/LLVMVoidTypeInContext ctx)
-    (throw (ex-info "Unknown call type" {:actual clj-type}))))
+    (throw (ex-info "Unknown call type" {:type clj-type}))))
+
+(defn wrap-pointer-type [clj-type]
+  (case clj-type
+    :token/integer-TYPE :token/int-pointer-TYPE
+    :string-TYPE :string-TYPE
+    :void-TYPE :void-TYPE
+    (throw (ex-info "Cannot wrap pointer type" {:type clj-type}))))
+
+(defn unwrap-pointer-type&value [clj-type ^LLVMBuilderRef builder ^LLVMContextRef context ^LLVMValueRef llvm-IR]
+  (case clj-type
+    :token/integer-TYPE [:token/integer-TYPE llvm-IR]
+    :token/int-pointer-TYPE [:token/integer-TYPE (LLVM/LLVMBuildLoad2 builder (get-llvm-type context :token/integer-TYPE) llvm-IR "")]
+    :string-TYPE [:string-TYPE llvm-IR]
+    (throw (ex-info "Cannot unwrap pointer value" {:clj-type clj-type}))))
 
 (defn ^LLVMValueRef get-initial-llvm-value [clj-type ^LLVMTypeRef llvm-type]
   (case clj-type
     :token/integer-TYPE (LLVM/LLVMConstInt llvm-type 0 0)
     :void-TYPE (throw (ex-info "Cannot have a variable of void type" {}))
     (throw (ex-info "Unknown type for variable declaration" {:clj-type clj-type}))))
+
+(defn pointer-arg-function? [target]
+  (#{"read_int"} target))
 
 (defn with-context [^String module-name f]
   (with-open [context (LLVM/LLVMContextCreate)]
@@ -75,6 +93,24 @@
 (def ^:const ^String WRITELN-INT "writeln_int")
 (def ^:const ^String WRITELN-STR "writeln_str")
 
+(defn ^LLVMValueRef generate-global-string [^LLVMModuleRef module ^LLVMContextRef context ^String value var-name]
+  (let [^String var-name (or var-name (str "str_ptr_" (System/nanoTime)))
+        str-len (inc (count value))
+        str-type (LLVM/LLVMArrayType (LLVM/LLVMInt8TypeInContext context) str-len)
+        str-const (LLVM/LLVMConstStringInContext context value (count value) 0)
+        global-var (LLVM/LLVMAddGlobal module str-type var-name)]
+    (LLVM/LLVMSetInitializer global-var str-const)
+    global-var))
+
+(defprotocol IConstType
+  (-const-type [this] "Returns a Clojure keyword representing a record's type"))
+
+(extend-protocol IConstType
+  CString
+  (-const-type [_] :string-TYPE)
+  CInteger
+  (-const-type [_] :token/integer-TYPE))
+
 (defprotocol IStringy
   (stringy? [this sym-table] "Returns true iff the expression can hold a string inside."))
 
@@ -86,7 +122,7 @@
   (stringy? [this _] (= (.-type this) :string-TYPE))
 
   CSymbol
-  (stringy? [this sym-table] (-> this .-value sym-table (= :string-TYPE)))
+  (stringy? [this sym-table] (-> this .-value sym-table :symbol/type (= :string-TYPE)))
 
   CString
   (stringy? [_ _] true)
@@ -113,6 +149,7 @@
                        (stringy? (first raw-args) sym-table))
                 "writeln_str"
                 "writeln_int")
+    "readln" "read_int"
     fname))
 
 (defn- prepare-context [module-name]
@@ -155,8 +192,12 @@
 (defn ->>codegen [gen-ctx blocks]
   (reduce #(-codegen %2 %1) gen-ctx blocks))
 
-(defn ^LLVMValueRef generate-global-string [^LLVMBuilderRef builder ^String value]
-  (LLVM/LLVMBuildGlobalStringPtr builder value "str_ptr"))
+(defn ^LLVMValueRef force-codegen-int [value ^GenContext gen-ctx]
+  (let [{:keys [^LLVMValueRef ret-IR ret-clj-type] :as ^GenContext gen-ctx} (-codegen value gen-ctx)]
+    (case ret-clj-type
+      :token/integer-TYPE ret-IR
+      :token/int-pointer-TYPE (LLVM/LLVMBuildLoad2 ^LLVMBuilderRef (.-builder gen-ctx) (get-llvm-type ^LLVMContextRef (.-context gen-ctx) :token/integer-TYPE) ret-IR "")
+      (throw (ex-info "Cannot force unwrapping int pointer - not an int or int pointer" {:actual-type ret-clj-type})))))
 
 (extend-type CProgram
   ICodegen
@@ -189,10 +230,13 @@
           ^LLVMModuleRef module (.-module gen-ctx)
           ^LLVMBuilderRef builder (.-builder gen-ctx)]
       (if-let [^LLVMValueRef f (LLVM/LLVMGetNamedFunction ^LLVMModuleRef module ^String target)]
-        (let [codegens (map #(-codegen % gen-ctx) args)
-              ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" arg-vals (into-array LLVMValueRef (map :ret-IR codegens))
+        (let [codegens (map #(let [{:keys [ret-IR ret-clj-type]} (-codegen % gen-ctx)]
+                               (if (pointer-arg-function? target)
+                                 [ret-clj-type ret-IR]
+                                 (unwrap-pointer-type&value ret-clj-type builder context ret-IR))) args)
+              ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" arg-vals (into-array LLVMValueRef (map second codegens))
               arg-types (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" (into-array (map #(->> %
-                                                                                                          :ret-clj-type
+                                                                                                          first
                                                                                                           (get-llvm-type context)) codegens)))
               return-type (:symbol/type ((.-table-of-symbols gen-ctx) target))]
           (assoc gen-ctx :ret-IR (LLVM/LLVMBuildCall2 builder
@@ -211,7 +255,8 @@
   (-codegen [{:keys [value]} ^GenContext gen-ctx]
     (let [^LLVMContextRef context (.-context gen-ctx)
           ^LLVMBuilderRef builder (.-builder gen-ctx)
-          str-global (generate-global-string builder value)
+          ^LLVMModuleRef module (.-module gen-ctx)
+          str-global (generate-global-string module context value (:var-name gen-ctx))
           str-type (LLVM/LLVMArrayType (LLVM/LLVMInt8TypeInContext context) (inc (count value)))
           ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" indices (into-array LLVMValueRef [(LLVM/LLVMConstInt (LLVM/LLVMInt32TypeInContext context) 0 0)
                                                                                       (LLVM/LLVMConstInt (LLVM/LLVMInt32TypeInContext context) 0 0)])]
@@ -228,8 +273,8 @@
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildAdd ^LLVMBuilderRef (.-builder gen-ctx)
-                                              ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                              ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                              (force-codegen-int lhs gen-ctx)
+                                              (force-codegen-int rhs gen-ctx)
                                               "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -237,8 +282,8 @@
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSub ^LLVMBuilderRef (.-builder gen-ctx)
-                                              ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                              ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                              (force-codegen-int lhs gen-ctx)
+                                              (force-codegen-int rhs gen-ctx)
                                               "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -246,8 +291,8 @@
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildMul ^LLVMBuilderRef (.-builder gen-ctx)
-                                              ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                              ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                              (force-codegen-int lhs gen-ctx)
+                                              (force-codegen-int rhs gen-ctx)
                                               "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -255,8 +300,8 @@
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSDiv ^LLVMBuilderRef (.-builder gen-ctx)
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -264,8 +309,8 @@
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSRem ^LLVMBuilderRef (.-builder gen-ctx)
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -273,7 +318,7 @@
   ICodegen
   (-codegen [{:keys [val]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildNeg ^LLVMBuilderRef (.-builder gen-ctx)
-                                              ^LLVMValueRef (:ret-IR (-codegen val gen-ctx))
+                                              (force-codegen-int val gen-ctx)
                                               "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -282,8 +327,8 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
                                                LLVM/LLVMIntSLT
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -292,8 +337,8 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
                                                LLVM/LLVMIntSLE
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -302,8 +347,8 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
                                                LLVM/LLVMIntSGT
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -312,8 +357,8 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
                                                LLVM/LLVMIntSGE
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -322,8 +367,8 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
                                                LLVM/LLVMIntEQ
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -332,8 +377,8 @@
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
                                                LLVM/LLVMIntNE
-                                               ^LLVMValueRef (:ret-IR (-codegen lhs gen-ctx))
-                                               ^LLVMValueRef (:ret-IR (-codegen rhs gen-ctx))
+                                               (force-codegen-int lhs gen-ctx)
+                                               (force-codegen-int rhs gen-ctx)
                                                "")
                    :ret-clj-type :token/integer-TYPE)))
 
@@ -381,6 +426,16 @@
                                 vars)]
       (assoc gen-ctx :table-of-symbols updated-table))))
 
+(extend-type CConst
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (let [{:keys [ret-IR]} (-codegen rhs (assoc gen-ctx :var-name lhs))]
+      (if (contains? (.-table-of-symbols gen-ctx) lhs)
+        (throw (ex-info "Symbol is already defined in this context." {:symbol-name lhs}))
+        (update gen-ctx :table-of-symbols assoc lhs #:symbol{:kind   :symbol-kind/constant
+                                                             :type   (-const-type rhs)
+                                                             :getter ret-IR})))))
+
 (extend-type CAssignment
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
@@ -401,14 +456,14 @@
   ICodegen
   (-codegen [{:keys [value]} ^GenContext gen-ctx]
     (if-let [sym ((.-table-of-symbols gen-ctx) value)]
-      (if (= (:symbol/kind sym) :symbol-kind/variable)
-        (let [^LLVMModuleRef module (.-module gen-ctx)
-              ^LLVMBuilderRef builder (.-builder gen-ctx)
-              ^LLVMContextRef context (.-context gen-ctx)]
-          (if-let [^LLVMValueRef global-var (LLVM/LLVMGetNamedGlobal module ^String value)]
-            (assoc gen-ctx :ret-IR (LLVM/LLVMBuildLoad2 builder (get-llvm-type context (:symbol/type sym)) global-var "")
-                           :ret-clj-type (:symbol/type sym))
-            (throw (ex-info "Global variable not found" {:symbol-name value}))))
+      (case (:symbol/kind sym)
+        :symbol-kind/variable (let [^LLVMModuleRef module (.-module gen-ctx)]
+                                (if-let [^LLVMValueRef global-var (LLVM/LLVMGetNamedGlobal module ^String value)]
+                                  (assoc gen-ctx :ret-IR global-var
+                                                 :ret-clj-type (wrap-pointer-type (:symbol/type sym)))
+                                  (throw (ex-info "Global variable not found" {:symbol-name value}))))
+        :symbol-kind/constant (assoc gen-ctx :ret-IR (:symbol/getter sym)
+                                             :ret-clj-type (:symbol/type sym))
         (throw (ex-info "Symbol is not a variable" {:symbol-name value
                                                     :symbol-kind (:symbol/kind sym)})))
       (throw (ex-info "Symbol not declared in the context" {:symbol-name value})))))
@@ -456,7 +511,7 @@
         (sh/sh "clang" "-c" in "-o" out "-target" target-triple "-Wno-override-module"))
     {:exit 0}))
 
-(defn compile-and-run [source-file IR-file out-file]
+(defn compile-and-run [source-file IR-file out-file prog-sh-conf]
   (let [externs "externs/io.c"
         externs-out "out/io.o"]
     (codegen source-file IR-file)
@@ -464,22 +519,25 @@
       (compile-cached externs externs-out)
       (sh/sh "clang" "-c" source-file "-o" IR-file "-target" target-triple "-Wno-override-module")
       (sh/sh "clang" IR-file externs-out "-o" out-file "-target" target-triple)
-      (sh/sh (str "./" out-file)))))
+      (apply sh/sh (str "./" out-file) (apply concat prog-sh-conf)))))
 
-(defn run-sample [file-name]
+(defn run-sample [[file-name prog-sh-conf]]
   (let [src-file (str "samples/" file-name ".mila")
         IR-file (str "out/" file-name ".bc")
         out-file (str "out/" file-name ".exe")]
-    (let [{:keys [out]} (compile-and-run src-file IR-file out-file)]
+    (let [{:keys [out]} (compile-and-run src-file IR-file out-file prog-sh-conf)]
       (printf "./%s\n" out-file)
       (println out))))
 
-(defn run-samples []
+(defn run-samples [& [files]]
   (.mkdir (File. "out"))
-  (doseq [sample ["hello-42"
-                  "hello-world"
-                  "string-test"
-                  "arithmetics"
-                  "conditionals"
-                  "vars"]]
+  (doseq [sample (or files [["arithmetics"]
+                            ["conditionals"]
+                            ["consts"]
+                            ["expressions2" {:in "10 13"}]
+                            ["hello-42"]
+                            ["hello-world"]
+                            ["inputOutput" {:in "42"}]
+                            ["string-test"]
+                            ["vars"]])]
     (run-sample sample)))

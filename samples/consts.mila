@@ -3,9 +3,10 @@ program consts;
 const A =  10;
       B = $10;
       C = &10;
+      S = 'def';
 begin
   writeln(A);
   writeln(B);
   writeln(C);
-  writeln('abc');
+  write('abc'); writeln(S);
 end.
