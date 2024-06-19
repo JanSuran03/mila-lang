@@ -1,0 +1,12 @@
+program simple_branch_if;
+
+var x : integer;
+
+begin
+    readln(x);
+    if x mod 2 = 0 then
+        writeln('even');
+
+    if x mod 2 = 1 then
+        writeln('odd')
+end.

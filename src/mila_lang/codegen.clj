@@ -397,21 +397,24 @@
           current-block (LLVM/LLVMGetInsertBlock builder)
           current-fn (LLVM/LLVMGetBasicBlockParent current-block)
           then-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_then")
-          else-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_else")
-          merge-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_merge")]
+          exit-block (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_exit")
+          else-block (if (nil? else)
+                       exit-block
+                       (when else (LLVM/LLVMAppendBasicBlockInContext context current-fn "cond_else")))]
       (LLVM/LLVMBuildCondBr builder cond-IR then-block else-block)
 
       (LLVM/LLVMPositionBuilderAtEnd builder then-block)
       (-codegen then gen-ctx)
       (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder)) ; does not end with "ret" instruction or similar
-        (LLVM/LLVMBuildBr builder merge-block))
+        (LLVM/LLVMBuildBr builder exit-block))
 
-      (LLVM/LLVMPositionBuilderAtEnd builder else-block)
-      (-codegen else gen-ctx)
-      (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
-        (LLVM/LLVMBuildBr builder merge-block))
+      (when else
+        (LLVM/LLVMPositionBuilderAtEnd builder else-block)
+        (-codegen else gen-ctx)
+        (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
+          (LLVM/LLVMBuildBr builder exit-block)))
 
-      (LLVM/LLVMPositionBuilderAtEnd builder merge-block)
+      (LLVM/LLVMPositionBuilderAtEnd builder exit-block)
       (assoc gen-ctx :ret-IR nil :ret-clj-type nil))))
 
 (extend-type CVarDecl
@@ -648,6 +651,7 @@
                             ["hello-world" {:expected "Hello, world!"}]
                             ["inputOutput" {:in "42" :expected "42"}]
                             ["multiple-decls" {:expected "40"}]
+                            ["single-branch-if" {:in "3" :expected "odd"}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]
                             ["vars" {:expected (lines "x := 3, y := 4"
