@@ -645,9 +645,9 @@
                                                               "1 + 1 >= 2: true"
                                                               "1 + 1 == 2: true"
                                                               "1 + 1 != 2: false")}]
-                            ["consts" {:expected (lines "10\n16\n8\nabcdef")}]
+                            ["consts" {:expected (lines 10 16 8 "abcdef")}]
                             ["expressions" {:in "5" :expected "30"}]
-                            ["expressions2" {:in "10 13" :expected (lines "10" "13" "23" "3" "330" "2")}]
+                            ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
                             ["factorialCycle" {:in "5" :expected "120"}]
                             ["for-loops" {:expected (lines "0,0"
                                                            "1,0" "1,1"
@@ -662,8 +662,8 @@
                             ["hello-world" {:expected "Hello, world!"}]
                             ["inputOutput" {:in "42" :expected "42"}]
                             ["multiple-decls" {:expected "40"}]
-                            ["primes" {:expected (lines "2" "3" "5" "7" "11" "13" "17" "19" "23" "29" "31" "37" "41"
-                                                        "43" "47" "53" "59" "61" "67" "71" "73" "79" "83" "89" "97")}]
+                            ["primes" {:expected (lines 2 3 5 7 11 13 17 19 23 29 31 37 41
+                                                        43 47 53 59 61 67 71 73 79 83 89 97)}]
                             ["single-branch-if" {:in "3" :expected "odd"}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]
@@ -671,5 +671,5 @@
                                                       "x + y = 7"
                                                       "y := y * y"
                                                       "x + y = 19")}]
-                            ["while-print" {:in "5" :expected (lines "5" "4" "3" "2" "1" "Happy New year!")}]])]
+                            ["while-print" {:in "5" :expected (lines 5 4 3 2 1 "Happy New year!")}]])]
     (run-sample sample)))
