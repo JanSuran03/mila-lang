@@ -1,5 +1,6 @@
 (ns mila-lang.codegen
   (:require [clojure.java.shell :as sh]
+            [clojure.string :as str]
             [mila-lang.parser.core :as parser])
   (:import (clojure.lang ExceptionInfo)
            (java.io File)
@@ -521,23 +522,49 @@
       (sh/sh "clang" IR-file externs-out "-o" out-file "-target" target-triple)
       (apply sh/sh (str "./" out-file) (apply concat prog-sh-conf)))))
 
-(defn run-sample [[file-name prog-sh-conf]]
+(defn normalize-string
+  "I. Hate. CRLF. Convention. On. Windows. It's pain to test it by exact \r\n matching, so splitting into lines is fine"
+  [s]
+  (->> s str/split-lines (filter seq)))
+
+(defn run-sample [[file-name {:keys [expected] :as prog-sh-conf}]]
   (let [src-file (str "samples/" file-name ".mila")
         IR-file (str "out/" file-name ".bc")
         out-file (str "out/" file-name ".exe")]
-    (let [{:keys [out]} (compile-and-run src-file IR-file out-file prog-sh-conf)]
-      (printf "./%s\n" out-file)
-      (println out))))
+    (let [{:keys [out]} (try (compile-and-run src-file IR-file out-file prog-sh-conf)
+                             (catch Throwable _ nil))]
+      (if (and out expected (= (normalize-string out) (normalize-string expected)))
+        (println "Success:" file-name)
+        (binding [*out* *err*]
+          (println "Incorrect output:" file-name))))))
+
+(defn lines [& xs]
+  (str/join \newline xs))
 
 (defn run-samples [& [files]]
   (.mkdir (File. "out"))
-  (doseq [sample (or files [["arithmetics"]
-                            ["conditionals"]
-                            ["consts"]
-                            ["expressions2" {:in "10 13"}]
-                            ["hello-42"]
-                            ["hello-world"]
-                            ["inputOutput" {:in "42"}]
-                            ["string-test"]
-                            ["vars"]])]
+  (doseq [sample (or files [["arithmetics" {:expected (lines "1 + 2 = 3"
+                                                             "1 - 2 = -1"
+                                                             "2 * 3 = 6"
+                                                             "20 / 3 = 6"
+                                                             "20 % 3 = 2"
+                                                             "3 * (4 + 17 % 6) - (7 / 2) = 24"
+                                                             "3 * -4 = -12")}]
+                            ["conditionals" {:expected (lines "1 + 1 < 2: false"
+                                                              "1 + 1 <= 2: true"
+                                                              "1 + 1 > 2: false"
+                                                              "1 + 1 >= 2: true"
+                                                              "1 + 1 == 2: true"
+                                                              "1 + 1 != 2: false")}]
+                            ["consts" {:expected (lines "10\n16\n8\nabcdef")}]
+                            ["expressions2" {:in "10 13" :expected (lines "10" "13" "23" "3" "330" "2")}]
+                            ["hello-42" {:expected "42"}]
+                            ["hello-world" {:expected "Hello, world!"}]
+                            ["inputOutput" {:in "42" :expected "42"}]
+                            ["string-test" {:expected (lines "A quote', tab\t, newline"
+                                                             " and return\r.")}]
+                            ["vars" {:expected (lines "x := 3, y := 4"
+                                                      "x + y = 7"
+                                                      "y := y * y"
+                                                      "x + y = 19")}]])]
     (run-sample sample)))
