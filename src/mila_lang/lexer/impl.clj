@@ -29,21 +29,34 @@
         (case ch
           [lexer/sym-char-pat] (recur (str buf ch)
                                       (inc index))
-          [lexer/safe-num-sym-end-pat] (sym->?token buf index)
+          [(concat lexer/safe-num-sym-end-pat ".")] (sym->?token buf index)
           (invalid-token (str buf ch)))))))
 
-(defmethod lexer/lex-impl :lexer/int
+(defn lex-decimal-float-part [^Integer integer-part input index]
+  (loop [value (str integer-part ".")
+         index index]
+    (if (eof? input index)
+      [[:token/float (Double/parseDouble value)] index]
+      (let [ch (char-at input index)]
+        (case ch
+          [lexer/any-dig-pat] (recur (str value ch)
+                                     (inc index))
+          [lexer/safe-num-sym-end-pat] [[:token/float (Double/parseDouble value)] index]
+          (throw (RuntimeException. (str "Could not read the decimal part of a number: '" value "'"))))))))
+
+(defmethod lexer/lex-impl :lexer/number
   [_ input index]
   (loop [value (char->int (char-at input index))
          index (inc index)]
     (if (eof? input index)
-      [[:token/number value] index]
+      [[:token/integer value] index]
       (let [ch (char-at input index)]
         (case ch
           [lexer/any-dig-pat] (recur (+ (* 10 value) (char->int ch))
                                      (inc index))
-          [lexer/safe-num-sym-end-pat] [[:token/number value] index]
-          (invalid-token (str val ch)))))))
+          [lexer/safe-num-sym-end-pat] [[:token/integer value] index]
+          \. (lex-decimal-float-part value input (inc index))
+          (invalid-token (str value ch)))))))
 
 (defmethod lexer/lex-impl :lexer/dot
   [_ input index]
@@ -60,10 +73,10 @@
   [_ input index]
   (let [index (inc index)]
     (if (eof? input index)
-      [[:token/number 0] index]
+      [[:token/integer 0] index]
       (let [ch (char-at input index)]
         (case ch
-          [lexer/safe-num-sym-end-pat] [[:token/number 0] index]
+          [lexer/safe-num-sym-end-pat] [[:token/integer 0] index]
           (invalid-token (str \0 ch)))))))
 
 (defmethod lexer/lex-impl :lexer/hex
@@ -75,7 +88,7 @@
              index index
              loaded false]
         (if (eof? input index)
-          [[:token/number value] index]
+          [[:token/integer value] index]
           (let [ch (char-at input index)
                 as-hex (lexer/hex-num ch)]
             (when (and (not loaded)
@@ -85,7 +98,7 @@
             (if as-hex
               (recur (long (+ (* value 16) as-hex)) (inc index) true)
               (case ch
-                [lexer/safe-num-sym-end-pat] [[:token/number value] index]
+                [lexer/safe-num-sym-end-pat] [[:token/integer value] index]
                 (invalid-token (str "$" value ch))))))))))
 
 (defmethod lexer/lex-impl :lexer/oct
@@ -97,7 +110,7 @@
              index index
              loaded false]
         (if (eof? input index)
-          [[:token/number value] index]
+          [[:token/integer value] index]
           (let [ch (char-at input index)
                 as-oct (lexer/oct-num ch)]
             (when (and (not loaded)
@@ -107,7 +120,7 @@
             (if as-oct
               (recur (long (+ (* value 8) as-oct)) (inc index) true)
               (case ch
-                [lexer/safe-num-sym-end-pat] [[:token/number value] index]
+                [lexer/safe-num-sym-end-pat] [[:token/integer value] index]
                 (invalid-token (str "&" value ch))))))))))
 
 (defmethod lexer/lex-impl :lexer/gt

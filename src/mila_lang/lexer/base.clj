@@ -17,7 +17,7 @@
 (def num-base-pat (list \$ \&))
 (def common-token-char-pat (seq ":<>+-*/="))
 (def token-end-pat (concat ws-pat "'.,;()[]"))
-(def safe-num-sym-end-pat (seq ":<>' \n\t\r.,;+-*/()[]="))
+(def safe-num-sym-end-pat (seq ":<>' \n\t\r,;+-*/()[]="))
 
 (defn invalid-token [buf]
   (throw (RuntimeException. (str "Invalid token: " buf))))
@@ -87,7 +87,7 @@
       \# (lex-impl :lexer/line-comment input index)
       \{ (lex-impl :lexer/block-comment input index)
       [sym-start-pat] (lex-impl :lexer/symbol input index)
-      [pos-dig-pat] (lex-impl :lexer/int input index)
+      [pos-dig-pat] (lex-impl :lexer/number input index)
       (invalid-token (char-at input index)))))
 
 (defn word-tokens [token]
@@ -118,7 +118,8 @@
          :token/to
          :token/var
          :token/while} token)
-      (#:token{:integer :token/integer-TYPE
+      (#:token{:float   :token/float-TYPE
+               :integer :token/integer-TYPE
                :string  :string-TYPE} token)))
 
 (defn lex* [input]

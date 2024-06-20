@@ -98,14 +98,14 @@
           [iter next-arg] (EXPR [iter])]
       (FUNCALL-ARGS-INNER2 [iter (conj call-args next-arg)])))]
 
- ["NUMBER-ARRAY-INDEX -> number"
+ ["NUMBER-ARRAY-INDEX -> integer"
   (fn [[iter]]
-    (let [[iter num] (match [iter :token/number])]
+    (let [[iter num] (match [iter :token/integer])]
       [iter (CInteger. num)]))]
- ["NUMBER-ARRAY-INDEX -> sub number"
+ ["NUMBER-ARRAY-INDEX -> sub integer"
   (fn [[iter]]
     (let [[iter] (match [iter :token/sub])
-          [iter num] (match [iter :token/number])]
+          [iter num] (match [iter :token/integer])]
       [iter (CInteger. (- num))]))]
  ["ARRAY-DECL -> array lbracket NUMBER-ARRAY-INDEX dotdot NUMBER-ARRAY-INDEX rbracket of TYPE-LITERAL"
   (fn [[iter]]
@@ -128,6 +128,10 @@
   (fn [[iter]]
     (let [[iter] (match [iter :token/integer-TYPE])]
       [iter :token/integer-TYPE]))]
+ ["TYPE-LITERAL -> float-TYPE"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/float-TYPE])]
+      [iter :token/float-TYPE]))]
  ["TYPE-LITERAL -> string-TYPE"
   (fn [[iter]]
     (let [[iter] (match [iter :token/string-TYPE])]
@@ -366,10 +370,14 @@
   (fn [[iter]]
     (let [[iter str] (match [iter :token/string])]
       [iter (CString. str)]))]
- ["LITERAL -> number"
+ ["LITERAL -> integer"
   (fn [[iter]]
-    (let [[iter num] (match [iter :token/number])]
+    (let [[iter num] (match [iter :token/integer])]
       [iter (CInteger. num)]))]
+ ["LITERAL -> float"
+  (fn [[iter]]
+    (let [[iter num] (match [iter :token/float])]
+      [iter (CFloat. num)]))]
  ["LITERAL -> true"
   (fn [[iter]]
     (let [[iter num] (match [iter :token/true])]

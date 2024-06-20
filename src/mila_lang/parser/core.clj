@@ -3,9 +3,7 @@
             [clojure.string :as str]
             [clojure.edn :as edn]
             [clojure.walk :as walk]
-            [clojure.pprint :as pp]
             [mila-lang.lexer.core :as lexer]
-            [mila-lang.parser.core :as parser]
             [mila-lang.parser.proto :as p])
   (:import (clojure.lang ExceptionInfo)
            (java.awt Toolkit)
@@ -34,6 +32,7 @@
                                    CContinue
                                    CDowntoFor
                                    CExit
+                                   CFloat
                                    CFunction
                                    CIfElse
                                    CIndexAssignment
@@ -110,6 +109,9 @@
 
 (defn parse-file [file]
   ((m :S) [(lexer/lex file)]))
+
+(defn parse* [input]
+  ((m :S) [(mila-lang.lexer.base/lex* input)]))
 
 (defn try-parse-file [expr]
   (try (parse-file expr)

@@ -34,17 +34,17 @@
                       [:token/semicolon]
                       [:token/eof]]}
             {:input  "123"
-             :tokens [[:token/number 123]
+             :tokens [[:token/integer 123]
                       [:token/eof]]}
             {:input  "$21"
-             :tokens [[:token/number 33]
+             :tokens [[:token/integer 33]
                       [:token/eof]]}
             {:input  "&21"
-             :tokens [[:token/number 17]
+             :tokens [[:token/integer 17]
                       [:token/eof]]}
             {:input  "-2"
              :tokens [[:token/sub]
-                      [:token/number 2]
+                      [:token/integer 2]
                       [:token/eof]]}
             {:input  "abc"
              :tokens [[:token/symbol "abc"]
@@ -71,6 +71,12 @@
                       [:token/eof]]}
             {:input  "."
              :tokens [[:token/dot]
+                      [:token/eof]]}
+            {:input  "3.14"
+             :tokens [[:token/float 3.14]
+                      [:token/eof]]}
+            {:input  "3."
+             :tokens [[:token/float 3.0]
                       [:token/eof]]}])
 
 (def wrong-inputs ["2a"

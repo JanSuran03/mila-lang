@@ -23,6 +23,7 @@
 (defrecord CContinue [])
 (defrecord CDowntoFor [iter-var iter-var-init iter-var-end body])
 (defrecord CExit [])
+(defrecord CFloat [value])
 (defrecord CFunction [name arglist return-type locals body forward])
 (defrecord CIfElse [cond then else])
 (defrecord CIndexAssignment [arr index-expr rhs])
