@@ -24,4 +24,6 @@ end;
 begin
     writeln(iseven(11));
     writeln(isodd(11));
+    writeln(iseven(10));
+    writeln(isodd(10));
 end.

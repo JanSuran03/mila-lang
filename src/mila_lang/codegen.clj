@@ -45,7 +45,8 @@
                        ^LLVMModuleRef module
                        table-of-symbols
                        ret-IR
-                       ret-clj-type])
+                       ret-clj-type
+                       forwards])
 
 (defn ^LLVMTypeRef get-llvm-type [^LLVMContextRef ctx clj-type]
   (case clj-type
@@ -89,7 +90,7 @@
                                                 "dec_int"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
                                                 "inc_int"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
                                                 "read_int"    #:symbol{:kind :symbol-kind/function :type :void-TYPE}}
-                        nil nil))))))
+                        nil nil {}))))))
 
 (defmacro keymap [& keys]
   `(hash-map ~@(mapcat #(list (keyword %) %) keys)))
@@ -594,38 +595,50 @@
     (assoc gen-ctx :ret-IR (LLVM/LLVMConstInt (LLVM/LLVMInt1TypeInContext (.-context gen-ctx)) (if value 1 0) 0)
                    :ret-clj-type :bool-TYPE)))
 
+(defn declare-function [{:keys [name arglist return-type]} ^GenContext gen-ctx]
+  (or ((.-forwards gen-ctx) name)
+      (let [^LLVMContextRef context (.-context gen-ctx)
+            ^LLVMModuleRef module (.-module gen-ctx)
+            llvm-arg-types (PointerPointer.
+                             ^"[Lorg.bytedeco.llvm.LLVM.LLVMTypeRef;" (into-array LLVMTypeRef (map #(get-llvm-type context (:type %)) arglist)))
+            llvm-return-type (get-llvm-type context return-type)
+            function-type (LLVM/LLVMFunctionType llvm-return-type llvm-arg-types ^int (count arglist) 0)
+            function (LLVM/LLVMAddFunction module ^String name function-type)]
+        #:function{:func-llvm-IR       function
+                   :func-llvm-type     function-type
+                   :func-llvm-ret-type llvm-return-type})))
+
 (extend-type CFunction
   ICodegen
-  (-codegen [{:keys [name arglist return-type locals body forward]} ^GenContext gen-ctx]
-    (let [gen-ctx (update gen-ctx :table-of-symbols assoc name #:symbol{:kind :symbol-kind/function
-                                                                        :type return-type})
-          ^LLVMContextRef context (.-context gen-ctx)
-          ^LLVMModuleRef module (.-module gen-ctx)
-          ^LLVMBuilderRef builder (.-builder gen-ctx)
-          llvm-arg-types (PointerPointer.
-                           ^"[Lorg.bytedeco.llvm.LLVM.LLVMTypeRef;" (into-array LLVMTypeRef (map #(get-llvm-type context (:type %)) arglist)))
-          llvm-return-type (get-llvm-type context return-type)
-          function-type (LLVM/LLVMFunctionType llvm-return-type llvm-arg-types ^int (count arglist) 0)
-          function (LLVM/LLVMAddFunction module ^String name function-type)
-          main-function-block (LLVM/LLVMAppendBasicBlockInContext context function (str name "_function_entry"))
-          _ (LLVM/LLVMPositionBuilderAtEnd builder main-function-block)
-          table-with-locals (reduce (fn [table-of-symbols [i {:keys [name type]}]]
-                                      (if (table-of-symbols name)
-                                        (throw (ex-info "Local variable already defined" {:name name}))
-                                        (assoc table-of-symbols name #:symbol{:kind  :symbol-kind/local-var
-                                                                              :type  type
-                                                                              :index i})))
-                                    (.-table-of-symbols gen-ctx)
-                                    (map-indexed vector arglist))
-          ret-val (LLVM/LLVMBuildAlloca builder llvm-return-type (str name "_ret_val"))]
-      (binding [*current-function-context* #:current-function{:name         name
-                                                              :clj-ret-type return-type
-                                                              :ret-val      ret-val}]
-        (let [new-ctx (assoc gen-ctx :table-of-symbols table-with-locals)]
-          (-codegen body new-ctx)
-          (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
-            (-codegen (CExit.) new-ctx))))
-      gen-ctx)))
+  (-codegen [{:keys [name arglist return-type locals body forward] :as f} ^GenContext gen-ctx]
+    (let [^GenContext gen-ctx (update gen-ctx :table-of-symbols assoc name #:symbol{:kind :symbol-kind/function
+                                                                                    :type return-type})
+          fmap (declare-function f gen-ctx)]
+      (if forward
+        (update gen-ctx :forwards assoc name fmap)
+        (let [^LLVMContextRef context (.-context gen-ctx)
+              ^LLVMBuilderRef builder (.-builder gen-ctx)
+              ^LLVMValueRef func-llvm-IR (fmap :function/func-llvm-IR)
+              ^LLVMTypeRef func-llvm-ret-type (fmap :function/func-llvm-ret-type)
+              main-function-block (LLVM/LLVMAppendBasicBlockInContext context func-llvm-IR (str name "_function_entry"))
+              _ (LLVM/LLVMPositionBuilderAtEnd builder main-function-block)
+              table-with-locals (reduce (fn [table-of-symbols [i {:keys [name type]}]]
+                                          (if (table-of-symbols name)
+                                            (throw (ex-info "Local variable already defined" {:name name}))
+                                            (assoc table-of-symbols name #:symbol{:kind  :symbol-kind/local-var
+                                                                                  :type  type
+                                                                                  :index i})))
+                                        (.-table-of-symbols gen-ctx)
+                                        (map-indexed vector arglist))
+              ret-val (LLVM/LLVMBuildAlloca builder func-llvm-ret-type (str name "_ret_val"))]
+          (binding [*current-function-context* #:current-function{:name         name
+                                                                  :clj-ret-type return-type
+                                                                  :ret-val      ret-val}]
+            (let [new-ctx (assoc gen-ctx :table-of-symbols table-with-locals)]
+              (-codegen body new-ctx)
+              (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
+                (-codegen (CExit.) new-ctx))))
+          gen-ctx)))))
 
 (extend-type CExit
   ICodegen
@@ -737,6 +750,7 @@
                             ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
                             ["factorialRec" {:in "5" :expected "120"}]
                             ["factorialCycle" {:in "5" :expected "120"}]
+                            ["fibonacci" {:expected (lines 21 34)}]
                             ["for-loops" {:expected (lines "0,0"
                                                            "1,0" "1,1"
                                                            "2,0" "2,1" "2,2"
@@ -748,6 +762,7 @@
                                                            "3,3" "3,2" "3,1" "3,0")}]
                             ["hello-42" {:expected "42"}]
                             ["hello-world" {:expected "Hello, world!"}]
+                            ["indirectRecursion" {:expected (lines 0 1 1 0)}]
                             ["inputOutput" {:in "42" :expected "42"}]
                             ["multiple-decls" {:expected "40"}]
                             ["primes" {:expected (lines 2 3 5 7 11 13 17 19 23 29 31 37 41
