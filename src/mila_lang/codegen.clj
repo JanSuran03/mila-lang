@@ -54,6 +54,7 @@
     :token/integer-TYPE (LLVM/LLVMInt32TypeInContext ctx)
     :token/float-TYPE (LLVM/LLVMFloatTypeInContext ctx)
     :token/int-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt32TypeInContext ctx) 0)
+    :token/float-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMFloatTypeInContext ctx) 0)
     :string-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext ctx) 0)
     :void-TYPE (LLVM/LLVMVoidTypeInContext ctx)
     (throw (ex-info "Unknown call type" {:type clj-type}))))
@@ -193,7 +194,8 @@
                 :token/integer-TYPE "writeln_int"
                 :token/float-TYPE "writeln_float")
     "readln" (case (-clj-type first-arg sym-table)
-               :token/integer-TYPE "read_int")
+               :token/integer-TYPE "read_int"
+               :token/float-TYPE "read_float")
     "dec" "dec_int"
     "inc" "inc_int"
     fname))
@@ -801,6 +803,7 @@
                             ["factorialRec" {:in "5" :expected "120"}]
                             ["factorialCycle" {:in "5" :expected "120"}]
                             ["fibonacci" {:expected (lines 21 34)}]
+                            ["floatIO" {:in "3.14" :expected "3.140000"}]
                             ["for-loops" {:expected (lines "0,0"
                                                            "1,0" "1,1"
                                                            "2,0" "2,1" "2,2"

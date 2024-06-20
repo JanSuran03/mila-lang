@@ -1,0 +1,8 @@
+program floatIO;
+
+var x : f32;
+
+begin
+    readln(x);
+    writeln(x);
+end.
