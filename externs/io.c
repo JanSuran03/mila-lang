@@ -12,8 +12,16 @@ void read_int(int *x) {
     scanf("%d", x);
 }
 
+void read_float(float *x) {
+    scanf("%f", x);
+}
+
 void write_int(int x) {
     printf("%d", x);
+}
+
+void write_float(float x) {
+    printf("%f", x);
 }
 
 void write_str(const char *s) {
@@ -22,6 +30,10 @@ void write_str(const char *s) {
 
 void writeln_int(int x) {
     printf("%d\n", x);
+}
+
+void writeln_float(float x) {
+    printf("%f\n", x);
 }
 
 void writeln_str(const char *s) {

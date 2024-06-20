@@ -26,6 +26,7 @@
                                    CContinue
                                    CDowntoFor
                                    CExit
+                                   CFloat
                                    CFunction
                                    CIfElse
                                    CIndexOp
@@ -51,6 +52,7 @@
 (defn ^LLVMTypeRef get-llvm-type [^LLVMContextRef ctx clj-type]
   (case clj-type
     :token/integer-TYPE (LLVM/LLVMInt32TypeInContext ctx)
+    :token/float-TYPE (LLVM/LLVMFloatTypeInContext ctx)
     :token/int-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt32TypeInContext ctx) 0)
     :string-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext ctx) 0)
     :void-TYPE (LLVM/LLVMVoidTypeInContext ctx)
@@ -59,6 +61,7 @@
 (defn wrap-pointer-type [clj-type]
   (case clj-type
     :token/integer-TYPE :token/int-pointer-TYPE
+    :token/float-TYPE :token/float-pointer-TYPE
     :string-TYPE :string-TYPE
     :void-TYPE :void-TYPE
     (throw (ex-info "Cannot wrap pointer type" {:type clj-type}))))
@@ -67,29 +70,35 @@
   (case clj-type
     :token/integer-TYPE [:token/integer-TYPE llvm-IR]
     :token/int-pointer-TYPE [:token/integer-TYPE (LLVM/LLVMBuildLoad2 builder (get-llvm-type context :token/integer-TYPE) llvm-IR "")]
+    :token/float-TYPE [:token/float-TYPE llvm-IR]
+    :token/float-pointer-TYPE [:token/float-TYPE (LLVM/LLVMBuildLoad2 builder (get-llvm-type context :token/float-TYPE) llvm-IR "")]
     :string-TYPE [:string-TYPE llvm-IR]
     (throw (ex-info "Cannot unwrap pointer value" {:clj-type clj-type}))))
 
 (defn ^LLVMValueRef get-initial-llvm-value [clj-type ^LLVMTypeRef llvm-type]
   (case clj-type
     :token/integer-TYPE (LLVM/LLVMConstInt llvm-type 0 0)
+    :token/float-TYPE (LLVM/LLVMConstReal llvm-type 0)
     :void-TYPE (throw (ex-info "Cannot have a variable of void type" {}))
     (throw (ex-info "Unknown type for variable declaration" {:clj-type clj-type}))))
 
 (defn pointer-arg-function? [target]
-  (#{"read_int" "dec_int" "inc_int"} target))
+  (#{"read_int" "read_float" "dec_int" "inc_int"} target))
 
 (defn with-context [^String module-name f]
   (with-open [context (LLVM/LLVMContextCreate)]
     (let [module (LLVM/LLVMModuleCreateWithNameInContext module-name context)]
       (with-open [builder (LLVM/LLVMCreateBuilderInContext context)]
-        (f (GenContext. context builder module {"write_int"   #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "write_str"   #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "writeln_int" #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "writeln_str" #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "dec_int"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "inc_int"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "read_int"    #:symbol{:kind :symbol-kind/function :type :void-TYPE}}
+        (f (GenContext. context builder module {"write_int"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "write_float"   #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "write_str"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "writeln_int"   #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "writeln_float" #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "writeln_str"   #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "dec_int"       #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "inc_int"       #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "read_int"      #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "read_float"    #:symbol{:kind :symbol-kind/function :type :void-TYPE}}
                         nil nil {}))))))
 
 (defmacro keymap [& keys]
@@ -98,9 +107,12 @@
 (def ^:const ^String FN-DEC-INT "dec_int")
 (def ^:const ^String FN-INC-INT "inc_int")
 (def ^:const ^String READ-INT "read_int")
+(def ^:const ^String READ-FLOAT "read_float")
 (def ^:const ^String WRITE-INT "write_int")
+(def ^:const ^String WRITE-FLOAT "write_float")
 (def ^:const ^String WRITE-STR "write_str")
 (def ^:const ^String WRITELN-INT "writeln_int")
+(def ^:const ^String WRITELN-FLOAT "writeln_float")
 (def ^:const ^String WRITELN-STR "writeln_str")
 
 (def ^:dynamic *break-continue-blocks* ())
@@ -122,47 +134,66 @@
   CString
   (-const-type [_] :string-TYPE)
   CInteger
-  (-const-type [_] :token/integer-TYPE))
+  (-const-type [_] :token/integer-TYPE)
+  CFloat
+  (-const-type [_] :token/float-TYPE))
 
-(defprotocol IStringy
-  (stringy? [this sym-table] "Returns true iff the expression can hold a string inside."))
+(defprotocol ICljType
+  (-clj-type [this sym-table]))
 
-(extend-protocol IStringy
-  CConst
-  (stringy? [this _] (instance? CString (.-rhs this)))
+(defn bin-op-type [lhs rhs sym-table]
+  (case [(-clj-type lhs sym-table) (-clj-type rhs sym-table)]
+    [:token/integer-TYPE :token/integer-TYPE] :token/integer-TYPE
+    [:token/float-TYPE :token/float-TYPE] :token/float-TYPE
+    ([:token/integer-TYPE :token/float-TYPE]
+     [:token/float-TYPE :token/integer-TYPE]) :token/float-TYPE))
 
-  CVarDecl
-  (stringy? [this _] (= (.-type this) :string-TYPE))
-
+(extend-protocol ICljType
   CSymbol
-  (stringy? [this sym-table] (-> this .-value sym-table :symbol/type (= :string-TYPE)))
+  (-clj-type [this sym-table] (-> this .-value sym-table :symbol/type))
 
   CString
-  (stringy? [_ _] true)
+  (-clj-type [_ _] :string-TYPE)
 
-  CIndexOp
-  (stringy? [this sym-table] (let [type (-> this .-arr-name sym-table)]
-                               (if (instance? CArrayType type)
-                                 (= (.-type ^CArrayType type) :string-TYPE)
-                                 (= type :string-TYPE))))
+  CInteger
+  (-clj-type [_ _] :token/integer-TYPE)
 
-  nil
-  (stringy? [_ _] false)
+  CFloat
+  (-clj-type [_ _] :token/float-TYPE)
 
-  Object
-  (stringy? [_ _] false))
+  CArithmAdd
+  (-clj-type [{:keys [lhs rhs]} sym-table] (bin-op-type lhs rhs sym-table))
 
-(defn coerce-extern [fname raw-args sym-table]
+  CArithmSub
+  (-clj-type [{:keys [lhs rhs]} sym-table] (bin-op-type lhs rhs sym-table))
+
+  CArithmMul
+  (-clj-type [{:keys [lhs rhs]} sym-table] (bin-op-type lhs rhs sym-table))
+
+  CArithmDiv
+  (-clj-type [{:keys [lhs rhs]} sym-table] (bin-op-type lhs rhs sym-table))
+
+  CArithmMod
+  (-clj-type [_ _] :token/integer-TYPE)
+
+  CArithmUnNeg
+  (-clj-type [{:keys [val]} sym-table] (-clj-type val sym-table))
+
+  CCall
+  (-clj-type [{:keys [target]} sym-table] (get-in sym-table [target :symbol/type])))
+
+(defn coerce-extern [fname [first-arg] sym-table]
   (case fname
-    "write" (if (and (= (count raw-args) 1)
-                     (stringy? (first raw-args) sym-table))
-              "write_str"
-              "write_int")
-    "writeln" (if (and (= (count raw-args) 1)
-                       (stringy? (first raw-args) sym-table))
-                "writeln_str"
-                "writeln_int")
-    "readln" "read_int"
+    "write" (case (-clj-type first-arg sym-table)
+              :string-TYPE "write_str"
+              :token/integer-TYPE "write_int"
+              :token/float-TYPE "write_float")
+    "writeln" (case (-clj-type first-arg sym-table)
+                :string-TYPE "writeln_str"
+                :token/integer-TYPE "writeln_int"
+                :token/float-TYPE "writeln_float")
+    "readln" (case (-clj-type first-arg sym-table)
+               :token/integer-TYPE "read_int")
     "dec" "dec_int"
     "inc" "inc_int"
     fname))
@@ -171,34 +202,47 @@
   (with-context module-name (fn [^GenContext gen-ctx]
                               (let [void-type (LLVM/LLVMVoidTypeInContext (.-context gen-ctx))
                                     int-type (LLVM/LLVMInt32TypeInContext (.-context gen-ctx))
+                                    float-type (LLVM/LLVMFloatTypeInContext (.-context gen-ctx))
                                     int-ptr-type (LLVM/LLVMPointerType int-type 0)
+                                    float-ptr-type (LLVM/LLVMPointerType float-type 0)
                                     char-ptr-type (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext (.-context gen-ctx)) 0)
                                     fn-type-int (LLVM/LLVMFunctionType void-type
                                                                        (doto (PointerPointer. 1)
                                                                          (.put int-type))
                                                                        1
                                                                        0)
+                                    fn-type-float (LLVM/LLVMFunctionType void-type
+                                                                         (doto (PointerPointer. 1)
+                                                                           (.put float-type))
+                                                                         1
+                                                                         0)
                                     fn-type-intptr (LLVM/LLVMFunctionType void-type
                                                                           (doto (PointerPointer. 1)
                                                                             (.put int-ptr-type))
                                                                           1
                                                                           0)
+                                    fn-type-floatptr (LLVM/LLVMFunctionType void-type
+                                                                            (doto (PointerPointer. 1)
+                                                                              (.put float-ptr-type))
+                                                                            1
+                                                                            0)
                                     fn-type-charptr (LLVM/LLVMFunctionType void-type
                                                                            (doto (PointerPointer. 1)
                                                                              (.put char-ptr-type))
                                                                            1
                                                                            0)
-                                    ^LLVMModuleRef module (.-module gen-ctx)
-                                    dec-int-fn (LLVM/LLVMAddFunction module FN-DEC-INT fn-type-intptr)
-                                    inc-int-fn (LLVM/LLVMAddFunction module FN-INC-INT fn-type-intptr)
-                                    read-int-fn (LLVM/LLVMAddFunction module READ-INT fn-type-intptr)
-                                    write-int-fn (LLVM/LLVMAddFunction module WRITE-INT fn-type-int)
-                                    write-str-fn (LLVM/LLVMAddFunction module WRITE-STR fn-type-charptr)
-                                    writeln-int-fn (LLVM/LLVMAddFunction module WRITELN-INT fn-type-int)
-                                    writeln-str-fn (LLVM/LLVMAddFunction module WRITELN-STR fn-type-charptr)
-                                    exit-fn (LLVM/LLVMAddFunction module "exit" fn-type-int)]
-                                (assoc gen-ctx :externs (keymap dec-int-fn inc-int-fn read-int-fn write-int-fn
-                                                                write-str-fn writeln-int-fn writeln-str-fn exit-fn))))))
+                                    ^LLVMModuleRef module (.-module gen-ctx)]
+                                (LLVM/LLVMAddFunction module FN-DEC-INT fn-type-intptr)
+                                (LLVM/LLVMAddFunction module FN-INC-INT fn-type-intptr)
+                                (LLVM/LLVMAddFunction module READ-INT fn-type-intptr)
+                                (LLVM/LLVMAddFunction module READ-FLOAT fn-type-floatptr)
+                                (LLVM/LLVMAddFunction module WRITE-INT fn-type-int)
+                                (LLVM/LLVMAddFunction module WRITE-FLOAT fn-type-float)
+                                (LLVM/LLVMAddFunction module WRITE-STR fn-type-charptr)
+                                (LLVM/LLVMAddFunction module WRITELN-INT fn-type-int)
+                                (LLVM/LLVMAddFunction module WRITELN-FLOAT fn-type-float)
+                                (LLVM/LLVMAddFunction module WRITELN-STR fn-type-charptr)
+                                gen-ctx))))
 
 (def ^:dynamic *main-block* false)
 (defprotocol ICodegen
@@ -283,7 +327,13 @@
   ICodegen
   (-codegen [{:keys [value]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMConstInt (LLVM/LLVMInt32TypeInContext (.-context gen-ctx)) value 1)
-                   :ret-clj-type :token/integer-TYPE)))     ; signed?
+                   :ret-clj-type :token/integer-TYPE)))
+
+(extend-type CFloat
+  ICodegen
+  (-codegen [{:keys [value]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMConstReal (LLVM/LLVMFloatTypeInContext (.-context gen-ctx)) value)
+                   :ret-clj-type :token/float-TYPE)))
 
 (extend-type CArithmAdd
   ICodegen
@@ -761,6 +811,7 @@
                                                            "2,2" "2,1" "2,0"
                                                            "3,3" "3,2" "3,1" "3,0")}]
                             ["hello-42" {:expected "42"}]
+                            ["hello-pi" {:expected "3.140000"}]
                             ["hello-world" {:expected "Hello, world!"}]
                             ["indirectRecursion" {:expected (lines 0 1 1 0)}]
                             ["inputOutput" {:in "42" :expected "42"}]
