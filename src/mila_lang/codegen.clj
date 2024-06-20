@@ -13,7 +13,9 @@
                                    CArrayType
                                    CAssignment
                                    CBeginEndBlock
-                                   CBreak CCall
+                                   CBoolean
+                                   CBreak
+                                   CCall
                                    CCmpEq
                                    CCmpGe
                                    CCmpGt
@@ -21,6 +23,7 @@
                                    CCmpLt
                                    CCmpNe
                                    CConst
+                                   CContinue
                                    CDowntoFor
                                    CIfElse
                                    CIndexOp
@@ -97,7 +100,7 @@
 (def ^:const ^String WRITELN-INT "writeln_int")
 (def ^:const ^String WRITELN-STR "writeln_str")
 
-(def ^:dynamic *block-successors* ())
+(def ^:dynamic *break-continue-blocks* ())
 
 (defn ^LLVMValueRef generate-global-string [^LLVMModuleRef module ^LLVMContextRef context ^String value var-name]
   (let [^String var-name (or var-name (str "str_ptr_" (System/nanoTime)))
@@ -496,7 +499,7 @@
         (LLVM/LLVMBuildCondBr builder ret-IR body-block exit-block))
       ; then
       (LLVM/LLVMPositionBuilderAtEnd builder body-block)
-      (binding [*block-successors* (cons exit-block *block-successors*)]
+      (binding [*break-continue-blocks* (cons #:block{:break exit-block :continue body-block} *break-continue-blocks*)]
         (-codegen body gen-ctx))
       (LLVM/LLVMBuildBr builder cond-block)
       ; end
@@ -529,7 +532,7 @@
       (LLVM/LLVMBuildCondBr builder ret-IR body-block exit-block))
     ; then
     (LLVM/LLVMPositionBuilderAtEnd builder body-block)
-    (binding [*block-successors* (cons exit-block *block-successors*)]
+    (binding [*break-continue-blocks* (cons #:block{:break exit-block :continue loop-block} *break-continue-blocks*)]
       (-codegen body gen-ctx))
     (LLVM/LLVMBuildBr builder loop-block)
     ; inc var
@@ -553,9 +556,24 @@
 (extend-type CBreak
   ICodegen
   (-codegen [_ ^GenContext gen-ctx]
-    (if (seq *block-successors*)
-      (LLVM/LLVMBuildBr (.-builder gen-ctx) (first *block-successors*))
+    (if (seq *break-continue-blocks*)
+      (do (LLVM/LLVMBuildBr (.-builder gen-ctx) ((first *break-continue-blocks*) :block/break))
+          gen-ctx)
       (throw (ex-info "No context to call 'break'" {})))))
+
+(extend-type CContinue
+  ICodegen
+  (-codegen [_ ^GenContext gen-ctx]
+    (if (seq *break-continue-blocks*)
+      (do (LLVM/LLVMBuildBr (.-builder gen-ctx) ((first *break-continue-blocks*) :block/continue))
+          gen-ctx)
+      (throw (ex-info "No context to call 'continue'" {})))))
+
+(extend-type CBoolean
+  ICodegen
+  (-codegen [{:keys [value]} ^GenContext gen-ctx]
+    (assoc gen-ctx :ret-IR (LLVM/LLVMConstInt (LLVM/LLVMInt1TypeInContext (.-context gen-ctx)) (if value 1 0) 0)
+                   :ret-clj-type :bool-TYPE)))
 
 (defmacro ->err [& body]
   `(binding [*out* *err*]
@@ -646,6 +664,8 @@
                                                               "1 + 1 == 2: true"
                                                               "1 + 1 != 2: false")}]
                             ["consts" {:expected (lines 10 16 8 "abcdef")}]
+                            ["continue-test" {:in "3 2 0 1 0 4 -1" :expected (lines 3 2 1 4
+                                                                                    1 2 4 5 7 8 10)}]
                             ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
                             ["factorialCycle" {:in "5" :expected "120"}]

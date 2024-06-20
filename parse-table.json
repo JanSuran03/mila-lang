@@ -39,12 +39,14 @@
   },
   "FUNCALL-ARGS-INNER": {
     "add": 19,
+    "false": 19,
     "lparen": 19,
     "number": 19,
     "rparen": 18,
     "string": 19,
     "sub": 19,
     "symbol": 19,
+    "true": 19,
     "ε": 18
   },
   "FUNCALL-ARGS-INNER2": {
@@ -127,19 +129,23 @@
   },
   "EXPR": {
     "add": 47,
+    "false": 47,
     "lparen": 47,
     "number": 47,
     "string": 47,
     "sub": 47,
-    "symbol": 47
+    "symbol": 47,
+    "true": 47
   },
   "EXPR-OR": {
     "add": 48,
+    "false": 48,
     "lparen": 48,
     "number": 48,
     "string": 48,
     "sub": 48,
-    "symbol": 48
+    "symbol": 48,
+    "true": 48
   },
   "EXPR-OR'": {
     "comma": 49,
@@ -157,11 +163,13 @@
   },
   "EXPR-AND": {
     "add": 51,
+    "false": 51,
     "lparen": 51,
     "number": 51,
     "string": 51,
     "sub": 51,
-    "symbol": 51
+    "symbol": 51,
+    "true": 51
   },
   "EXPR-AND'": {
     "and": 53,
@@ -180,11 +188,13 @@
   },
   "EXPR-EQ-NE": {
     "add": 54,
+    "false": 54,
     "lparen": 54,
     "number": 54,
     "string": 54,
     "sub": 54,
-    "symbol": 54
+    "symbol": 54,
+    "true": 54
   },
   "EXPR-EQ-NE'": {
     "and": 55,
@@ -205,11 +215,13 @@
   },
   "EXPR-CMP": {
     "add": 58,
+    "false": 58,
     "lparen": 58,
     "number": 58,
     "string": 58,
     "sub": 58,
-    "symbol": 58
+    "symbol": 58,
+    "true": 58
   },
   "EXPR-CMP'": {
     "and": 59,
@@ -234,11 +246,13 @@
   },
   "EXPR-ADD": {
     "add": 64,
+    "false": 64,
     "lparen": 64,
     "number": 64,
     "string": 64,
     "sub": 64,
-    "symbol": 64
+    "symbol": 64,
+    "true": 64
   },
   "EXPR-ADD'": {
     "add": 66,
@@ -265,11 +279,13 @@
   },
   "EXPR-MUL": {
     "add": 68,
+    "false": 68,
     "lparen": 68,
     "number": 68,
     "string": 68,
     "sub": 68,
-    "symbol": 68
+    "symbol": 68,
+    "true": 68
   },
   "EXPR-MUL'": {
     "add": 69,
@@ -299,17 +315,21 @@
   },
   "EXPR-UNARY": {
     "add": 74,
+    "false": 73,
     "lparen": 73,
     "number": 73,
     "string": 73,
     "sub": 75,
-    "symbol": 73
+    "symbol": 73,
+    "true": 73
   },
   "EXPR-L0": {
+    "false": 76,
     "lparen": 77,
     "number": 76,
     "string": 76,
-    "symbol": 78
+    "symbol": 78,
+    "true": 76
   },
   "EXPR-SYM'": {
     "add": 79,
@@ -340,69 +360,73 @@
     "ε": 79
   },
   "LITERAL": {
+    "false": 85,
     "number": 83,
-    "string": 82
+    "string": 82,
+    "true": 84
   },
   "FOR-LOOP": {
-    "for": 84
+    "for": 86
   },
   "FOR-LOOP-TAIL": {
-    "downto": 86,
-    "to": 85
+    "downto": 88,
+    "to": 87
   },
   "WHILE-LOOP": {
-    "while": 87
+    "while": 89
   },
   "ASSIGNMENT": {
-    "symbol": 88
+    "symbol": 90
   },
   "ASSIGNMENT-RST": {
-    "assign": 89,
-    "lbracket": 90
+    "assign": 91,
+    "lbracket": 92
   },
   "IF-ELSE-BLOCK": {
-    "if": 91
+    "if": 93
   },
   "ELSE-BRANCH&": {
-    "else": 93,
-    "end": 92,
-    "semicolon": 92,
-    "ε": 92
+    "else": 95,
+    "end": 94,
+    "semicolon": 94,
+    "ε": 94
   },
   "PROCEDURAL-BLOCK": {
-    "begin": 98,
-    "break": 100,
-    "exit": 99,
-    "for": 94,
-    "if": 96,
-    "symbol": 97,
-    "while": 95
+    "begin": 100,
+    "break": 102,
+    "continue": 103,
+    "exit": 101,
+    "for": 96,
+    "if": 98,
+    "symbol": 99,
+    "while": 97
   },
   "FUNCALL-OR-ASSIGNMENT": {
-    "symbol": 101
+    "symbol": 104
   },
   "FUNCALL-OR-ASSIGNMENT-RST": {
-    "assign": 102,
-    "lbracket": 102,
-    "lparen": 103
+    "assign": 105,
+    "lbracket": 105,
+    "lparen": 106
   },
   "BEGIN-END-BLOCK": {
-    "begin": 104
+    "begin": 107
   },
   "BEGIN-END-BLOCK-RST": {
-    "end": 105,
-    "semicolon": 106,
-    "ε": 105
+    "end": 108,
+    "semicolon": 109,
+    "ε": 108
   },
   "BEGIN-END-BLOCK-REC": {
-    "begin": 108,
-    "break": 108,
-    "end": 107,
-    "exit": 108,
-    "for": 108,
-    "if": 108,
-    "symbol": 108,
-    "while": 108,
-    "ε": 107
+    "begin": 111,
+    "break": 111,
+    "continue": 111,
+    "end": 110,
+    "exit": 111,
+    "for": 111,
+    "if": 111,
+    "symbol": 111,
+    "while": 111,
+    "ε": 110
   }
 }

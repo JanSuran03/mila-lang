@@ -77,8 +77,8 @@
                    "program2$"
                    "'abc\\x'"
                    "'abc"
-                   "#a"
-                   "ab#c"])
+                   "^a"
+                   "ab@c"])
 
 (defn run-tests []
   (doseq [{:keys [input tokens]} tests]

@@ -21,6 +21,7 @@
                                    CArrayType
                                    CAssignment
                                    CBeginEndBlock
+                                   CBoolean
                                    CBreak
                                    CCall
                                    CCmpEq
@@ -30,6 +31,7 @@
                                    CCmpLe
                                    CCmpNe
                                    CConst
+                                   CContinue
                                    CDowntoFor
                                    CExit
                                    CFunction

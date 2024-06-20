@@ -96,12 +96,14 @@
          :token/begin
          :token/break
          :token/const
+         :token/continue
          :token/div
          :token/do
          :token/downto
          :token/else
          :token/end
          :token/exit
+         :token/false
          :token/for
          :token/forward
          :token/function
@@ -112,6 +114,7 @@
          :token/program
          :token/procedure
          :token/then
+         :token/true
          :token/to
          :token/var
          :token/while} token)

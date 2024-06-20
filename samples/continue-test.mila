@@ -1,0 +1,16 @@
+program continueTest;
+
+var x : integer;
+
+begin
+    while true do begin
+        readln(x);
+        if x = 0 then continue;
+        if x < 0 then break;
+        writeln(x);
+    end;
+    for x := 0 to 11 do begin
+        if (x % 3 = 0) then continue;
+        writeln(x);
+    end
+end.

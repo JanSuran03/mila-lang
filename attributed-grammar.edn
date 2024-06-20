@@ -370,6 +370,14 @@
   (fn [[iter]]
     (let [[iter num] (match [iter :token/number])]
       [iter (CInteger. num)]))]
+ ["LITERAL -> true"
+  (fn [[iter]]
+    (let [[iter num] (match [iter :token/true])]
+      [iter (CBoolean. true)]))]
+ ["LITERAL -> false"
+  (fn [[iter]]
+    (let [[iter num] (match [iter :token/false])]
+      [iter (CBoolean. false)]))]
 
  ["FOR-LOOP -> for symbol assign EXPR FOR-LOOP-TAIL"
   (fn [[iter]]
@@ -458,6 +466,10 @@
   (fn [[iter]]
     (let [[iter] (match [iter :token/break])]
       [iter (CBreak.)]))]
+ ["PROCEDURAL-BLOCK -> continue"
+  (fn [[iter]]
+    (let [[iter] (match [iter :token/continue])]
+      [iter (CContinue.)]))]
 
  ["FUNCALL-OR-ASSIGNMENT -> symbol FUNCALL-OR-ASSIGNMENT-RST"
   (fn [[iter]]
