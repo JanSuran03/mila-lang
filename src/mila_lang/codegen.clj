@@ -99,7 +99,9 @@
                                                 "dec_int"       #:symbol{:kind :symbol-kind/function :type :void-TYPE}
                                                 "inc_int"       #:symbol{:kind :symbol-kind/function :type :void-TYPE}
                                                 "read_int"      #:symbol{:kind :symbol-kind/function :type :void-TYPE}
-                                                "read_float"    #:symbol{:kind :symbol-kind/function :type :void-TYPE}}
+                                                "read_float"    #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "int"           #:symbol{:kind :symbol-kind/function :type :token/integer-TYPE}
+                                                "float"         #:symbol{:kind :symbol-kind/function :type :token/float-TYPE}}
                         nil nil {}))))))
 
 (defmacro keymap [& keys]
@@ -253,11 +255,13 @@
 (defn ->>codegen [gen-ctx blocks]
   (reduce #(-codegen %2 %1) gen-ctx blocks))
 
-(defn ^LLVMValueRef force-codegen-int [value ^GenContext gen-ctx]
+(defn ^LLVMValueRef force-codegen-number [value ^GenContext gen-ctx]
   (let [{:keys [^LLVMValueRef ret-IR ret-clj-type] :as ^GenContext gen-ctx} (-codegen value gen-ctx)]
     (case ret-clj-type
-      :token/integer-TYPE ret-IR
-      :token/int-pointer-TYPE (LLVM/LLVMBuildLoad2 ^LLVMBuilderRef (.-builder gen-ctx) (get-llvm-type ^LLVMContextRef (.-context gen-ctx) :token/integer-TYPE) ret-IR "")
+      :token/integer-TYPE [:token/integer-TYPE ret-IR]
+      :token/int-pointer-TYPE [:token/integer-TYPE (LLVM/LLVMBuildLoad2 ^LLVMBuilderRef (.-builder gen-ctx) (get-llvm-type ^LLVMContextRef (.-context gen-ctx) :token/integer-TYPE) ret-IR "")]
+      :token/float-TYPE [:token/float-TYPE ret-IR]
+      :token/float-pointer-TYPE [:token/float-TYPE (LLVM/LLVMBuildLoad2 ^LLVMBuilderRef (.-builder gen-ctx) (get-llvm-type ^LLVMContextRef (.-context gen-ctx) :token/float-TYPE) ret-IR "")]
       (throw (ex-info "Cannot force unwrapping int pointer - not an int or int pointer" {:actual-type ret-clj-type})))))
 
 (extend-type CProgram
@@ -290,27 +294,36 @@
           ^LLVMContextRef context (.-context gen-ctx)
           ^LLVMModuleRef module (.-module gen-ctx)
           ^LLVMBuilderRef builder (.-builder gen-ctx)]
-      (if-let [^LLVMValueRef f (LLVM/LLVMGetNamedFunction ^LLVMModuleRef module ^String target)]
-        (let [codegens (map #(let [{:keys [ret-IR ret-clj-type]} (-codegen % gen-ctx)]
-                               (if (pointer-arg-function? target)
-                                 [ret-clj-type ret-IR]
-                                 (unwrap-pointer-type&value ret-clj-type builder context ret-IR))) args)
-              ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" arg-vals (into-array LLVMValueRef (map second codegens))
-              arg-types (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" (into-array (map #(->> %
-                                                                                                          first
-                                                                                                          (get-llvm-type context)) codegens)))
-              return-type (:symbol/type ((.-table-of-symbols gen-ctx) target))]
-          (assoc gen-ctx :ret-IR (LLVM/LLVMBuildCall2 builder
-                                                      (LLVM/LLVMFunctionType (get-llvm-type context return-type)
-                                                                             arg-types
-                                                                             (count codegens)
-                                                                             0)
-                                                      f
-                                                      (PointerPointer. arg-vals)
-                                                      (count arg-vals)
-                                                      "")
-                         :ret-clj-type return-type))
-        (throw (ex-info (str "Function '" target "' is not declared in this context.") {}))))))
+      (case target
+        "int" (case (count args)
+                1 (assoc gen-ctx :ret-IR (LLVM/LLVMBuildFPToSI builder ^LLVMValueRef (:ret-IR (-codegen (first args) gen-ctx)) (LLVM/LLVMInt32TypeInContext context) "")
+                                 :ret-clj-type :token/integer-TYPE)
+                (throw (ex-info "Wrong number of arguments passed to int typecast" {:actual (count args)})))
+        "float" (case (count args)
+                  1 (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef (:ret-IR (-codegen (first args) gen-ctx)) (LLVM/LLVMFloatTypeInContext context) "")
+                                   :ret-clj-type :token/float-TYPE)
+                  (throw (ex-info "Wrong number of arguments passed to float typecast" {:actual (count args)})))
+        (if-let [^LLVMValueRef f (LLVM/LLVMGetNamedFunction ^LLVMModuleRef module ^String target)]
+          (let [codegens (map #(let [{:keys [ret-IR ret-clj-type]} (-codegen % gen-ctx)]
+                                 (if (pointer-arg-function? target)
+                                   [ret-clj-type ret-IR]
+                                   (unwrap-pointer-type&value ret-clj-type builder context ret-IR))) args)
+                ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" arg-vals (into-array LLVMValueRef (map second codegens))
+                arg-types (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" (into-array (map #(->> %
+                                                                                                            first
+                                                                                                            (get-llvm-type context)) codegens)))
+                return-type (:symbol/type ((.-table-of-symbols gen-ctx) target))]
+            (assoc gen-ctx :ret-IR (LLVM/LLVMBuildCall2 builder
+                                                        (LLVM/LLVMFunctionType (get-llvm-type context return-type)
+                                                                               arg-types
+                                                                               (count codegens)
+                                                                               0)
+                                                        f
+                                                        (PointerPointer. arg-vals)
+                                                        (count arg-vals)
+                                                        "")
+                           :ret-clj-type return-type))
+          (throw (ex-info (str "Function '" target "' is not declared in this context.") {})))))))
 
 (extend-type CString
   ICodegen
@@ -336,119 +349,77 @@
   (-codegen [{:keys [value]} ^GenContext gen-ctx]
     (assoc gen-ctx :ret-IR (LLVM/LLVMConstReal (LLVM/LLVMFloatTypeInContext (.-context gen-ctx)) value)
                    :ret-clj-type :token/float-TYPE)))
+(defn build-bin-op [int-op float-op lhs rhs ^GenContext gen-ctx]
+  (let [[t-L ir-L] (force-codegen-number lhs gen-ctx)
+        [t-R ir-R] (force-codegen-number rhs gen-ctx)
+        ^LLVMBuilderRef builder (.-builder gen-ctx)]
+    (case [t-L t-R]
+      [:token/integer-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (int-op builder ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
+      [:token/float-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-op builder ir-L ir-R "") :ret-clj-type :token/float-TYPE)
+      [:token/integer-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-op builder
+                                                                               (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                               ir-R "")
+                                                             :ret-clj-type :token/float-TYPE)
+      [:token/float-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (float-op builder
+                                                                               ir-L
+                                                                               (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                               "")
+                                                             :ret-clj-type :token/float-TYPE))))
 
-(extend-type CArithmAdd
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildAdd ^LLVMBuilderRef (.-builder gen-ctx)
-                                              (force-codegen-int lhs gen-ctx)
-                                              (force-codegen-int rhs gen-ctx)
-                                              "")
-                   :ret-clj-type :token/integer-TYPE)))
+(def int-cmp ^LLVMValueRef ^[LLVMBuilderRef int LLVMValueRef LLVMValueRef String] LLVM/LLVMBuildICmp)
+(def float-cmp ^LLVMValueRef ^[LLVMBuilderRef int LLVMValueRef LLVMValueRef String] LLVM/LLVMBuildICmp)
 
-(extend-type CArithmSub
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSub ^LLVMBuilderRef (.-builder gen-ctx)
-                                              (force-codegen-int lhs gen-ctx)
-                                              (force-codegen-int rhs gen-ctx)
-                                              "")
-                   :ret-clj-type :token/integer-TYPE)))
+(defn build-cmp [int-cmp-kind float-cmp-kind lhs rhs ^GenContext gen-ctx]
+  (let [[t-L ir-L] (force-codegen-number lhs gen-ctx)
+        [t-R ir-R] (force-codegen-number rhs gen-ctx)
+        ^LLVMBuilderRef builder (.-builder gen-ctx)]
+    (case [t-L t-R]
+      [:token/integer-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (int-cmp builder int-cmp-kind ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
+      [:token/float-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
+      [:token/integer-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind
+                                                                                (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                                ir-R "")
+                                                             :ret-clj-type :token/integer-TYPE)
+      [:token/float-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind
+                                                                                ir-L
+                                                                                (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                                "")
+                                                             :ret-clj-type :token/integer-TYPE))))
 
-(extend-type CArithmMul
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildMul ^LLVMBuilderRef (.-builder gen-ctx)
-                                              (force-codegen-int lhs gen-ctx)
-                                              (force-codegen-int rhs gen-ctx)
-                                              "")
-                   :ret-clj-type :token/integer-TYPE)))
+(defmacro impl-bin-op [rec-name int-op float-op]
+  `(extend-type ~rec-name
+     ICodegen
+     (-codegen [{lhs# :lhs rhs# :rhs} gen-ctx#]
+               (build-bin-op ~(vary-meta int-op assoc :tag LLVMValueRef :param-tags [LLVMBuilderRef LLVMValueRef LLVMValueRef String])
+                             ~(vary-meta float-op assoc :tag LLVMValueRef :param-tags [LLVMBuilderRef LLVMValueRef LLVMValueRef String])
+                             lhs# rhs# gen-ctx#))))
 
-(extend-type CArithmDiv
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSDiv ^LLVMBuilderRef (.-builder gen-ctx)
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
+(defmacro impl-cmp-op [rec-name int-cmp-kind float-cmp-kind]
+  `(extend-type ~rec-name
+     ICodegen
+     (-codegen [{lhs# :lhs rhs# :rhs} gen-ctx#]
+               (build-cmp ~int-cmp-kind ~float-cmp-kind lhs# rhs# gen-ctx#))))
 
-(extend-type CArithmMod
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSRem ^LLVMBuilderRef (.-builder gen-ctx)
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
+(impl-bin-op CArithmAdd LLVM/LLVMBuildAdd LLVM/LLVMBuildFAdd)
+(impl-bin-op CArithmSub LLVM/LLVMBuildSub LLVM/LLVMBuildFSub)
+(impl-bin-op CArithmMul LLVM/LLVMBuildMul LLVM/LLVMBuildFMul)
+(impl-bin-op CArithmDiv LLVM/LLVMBuildSDiv LLVM/LLVMBuildFDiv)
+(impl-bin-op CArithmMod LLVM/LLVMBuildSRem LLVM/LLVMBuildFRem)
+(impl-cmp-op CCmpLt LLVM/LLVMIntSLT LLVM/LLVMRealOLT)
+(impl-cmp-op CCmpLe LLVM/LLVMIntSLE LLVM/LLVMRealOLE)
+(impl-cmp-op CCmpGt LLVM/LLVMIntSGT LLVM/LLVMRealOGT)
+(impl-cmp-op CCmpGe LLVM/LLVMIntSGE LLVM/LLVMRealOGE)
+(impl-cmp-op CCmpEq LLVM/LLVMIntEQ LLVM/LLVMRealOEQ)
+(impl-cmp-op CCmpNe LLVM/LLVMIntNE LLVM/LLVMRealONE)
 
 (extend-type CArithmUnNeg
   ICodegen
   (-codegen [{:keys [val]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildNeg ^LLVMBuilderRef (.-builder gen-ctx)
-                                              (force-codegen-int val gen-ctx)
-                                              "")
-                   :ret-clj-type :token/integer-TYPE)))
-
-(extend-type CCmpLt
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
-                                               LLVM/LLVMIntSLT
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
-
-(extend-type CCmpLe
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
-                                               LLVM/LLVMIntSLE
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
-
-(extend-type CCmpGt
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
-                                               LLVM/LLVMIntSGT
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
-
-(extend-type CCmpGe
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
-                                               LLVM/LLVMIntSGE
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
-
-(extend-type CCmpEq
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
-                                               LLVM/LLVMIntEQ
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
-
-(extend-type CCmpNe
-  ICodegen
-  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildICmp ^LLVMBuilderRef (.-builder gen-ctx)
-                                               LLVM/LLVMIntNE
-                                               (force-codegen-int lhs gen-ctx)
-                                               (force-codegen-int rhs gen-ctx)
-                                               "")
-                   :ret-clj-type :token/integer-TYPE)))
+    (let [[ret-clj-type ^LLVMValueRef ret-IR] (force-codegen-number val gen-ctx)
+          ^LLVMBuilderRef builder (.-builder gen-ctx)]
+      (case ret-clj-type
+        :token/integer-TYPE (assoc gen-ctx :ret-IR (LLVM/LLVMBuildNeg builder ret-IR "") :ret-clj-type :token/integer-TYPE)
+        :token/float-TYPE (assoc gen-ctx :ret-IR (LLVM/LLVMBuildFNeg builder ret-IR "") :ret-clj-type :token/float-TYPE)))))
 
 (extend-type CIfElse
   ICodegen
@@ -798,6 +769,7 @@
                             ["consts" {:expected (lines 10 16 8 "abcdef")}]
                             ["continue-test" {:in "3 2 0 1 0 4 -1" :expected (lines 3 2 1 4
                                                                                     1 2 4 5 7 8 10)}]
+                            ["explicitFloatConv" {:in "3.14 15" :expected (lines "3" "22.500000")}]
                             ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
                             ["factorialRec" {:in "5" :expected "120"}]

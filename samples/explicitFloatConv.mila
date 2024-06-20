@@ -1,0 +1,22 @@
+program explicitFloatConv;
+
+function floor(x : f32) : integer;
+begin
+    floor := int(x);
+end;
+
+function add_50_percent(x : integer) : f32;
+begin
+    add_50_percent := float(x) * 1.5;
+end;
+
+var f : f32;
+var i : integer;
+
+begin
+    readln(f);
+    writeln(floor(f));
+
+    readln(i);
+    writeln(add_50_percent(i));
+end.

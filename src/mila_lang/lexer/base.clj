@@ -118,7 +118,7 @@
          :token/to
          :token/var
          :token/while} token)
-      (#:token{:float   :token/float-TYPE
+      (#:token{:f32     :token/float-TYPE
                :integer :token/integer-TYPE
                :string  :string-TYPE} token)))
 
