@@ -464,18 +464,22 @@
 (extend-type CAssignment
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (let [^LLVMModuleRef module (.-module gen-ctx)]
-      (if-let [sym ((.-table-of-symbols gen-ctx) lhs)]
-        (if (= (:symbol/kind sym) :symbol-kind/variable)
-          (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
-            (assign gen-ctx rhs global-var)
-            (throw (throw (ex-info "Global variable not found" {:symbol-name lhs}))))
-          (throw (ex-info "Cannot assign to a non-variable" {:symbol-name lhs
-                                                             :symbol-kind (:symbol/kind sym)})))
-        (let [{:current-function/keys [name ret-val]} *current-function-context*]
-          (if (= name lhs)
+    (let [^LLVMModuleRef module (.-module gen-ctx)
+          {:current-function/keys [name ret-val]} *current-function-context*
+          table-sym ((.-table-of-symbols gen-ctx) lhs)]
+      (cond (= name lhs)                                    ; return address
             (assign gen-ctx rhs ret-val)
-            (throw (ex-info "Cannot assign to symbol, not declared in the context" {:symbol-name lhs}))))))))
+
+            table-sym                                       ; standard symbol
+            (if (= (:symbol/kind table-sym) :symbol-kind/variable)
+              (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
+                (assign gen-ctx rhs global-var)
+                (throw (throw (ex-info "Global variable not found" {:symbol-name lhs}))))
+              (throw (ex-info "Cannot assign to a non-variable" {:symbol-name lhs
+                                                                 :symbol-kind (:symbol/kind table-sym)})))
+
+            :else
+            (throw (ex-info "Cannot assign to symbol, not declared in the context" {:symbol-name lhs}))))))
 
 (extend-type CSymbol
   ICodegen
@@ -593,7 +597,9 @@
 (extend-type CFunction
   ICodegen
   (-codegen [{:keys [name arglist return-type locals body forward]} ^GenContext gen-ctx]
-    (let [^LLVMContextRef context (.-context gen-ctx)
+    (let [gen-ctx (update gen-ctx :table-of-symbols assoc name #:symbol{:kind :symbol-kind/function
+                                                                        :type return-type})
+          ^LLVMContextRef context (.-context gen-ctx)
           ^LLVMModuleRef module (.-module gen-ctx)
           ^LLVMBuilderRef builder (.-builder gen-ctx)
           llvm-arg-types (PointerPointer.
@@ -619,8 +625,7 @@
           (-codegen body new-ctx)
           (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
             (-codegen (CExit.) new-ctx))))
-      (update gen-ctx :table-of-symbols assoc name #:symbol{:kind :symbol-kind/function
-                                                            :type return-type}))))
+      gen-ctx)))
 
 (extend-type CExit
   ICodegen
@@ -730,6 +735,7 @@
                                                                                     1 2 4 5 7 8 10)}]
                             ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
+                            ["factorialRec" {:in "5" :expected "120"}]
                             ["factorialCycle" {:in "5" :expected "120"}]
                             ["for-loops" {:expected (lines "0,0"
                                                            "1,0" "1,1"
