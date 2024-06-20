@@ -25,6 +25,8 @@
                                    CConst
                                    CContinue
                                    CDowntoFor
+                                   CExit
+                                   CFunction
                                    CIfElse
                                    CIndexOp
                                    CInteger
@@ -101,6 +103,7 @@
 (def ^:const ^String WRITELN-STR "writeln_str")
 
 (def ^:dynamic *break-continue-blocks* ())
+(def ^:dynamic *current-function-context* #:current-function{:name nil :ret-val nil :clj-ret-type nil})
 
 (defn ^LLVMValueRef generate-global-string [^LLVMModuleRef module ^LLVMContextRef context ^String value var-name]
   (let [^String var-name (or var-name (str "str_ptr_" (System/nanoTime)))
@@ -258,7 +261,8 @@
                                                       f
                                                       (PointerPointer. arg-vals)
                                                       (count arg-vals)
-                                                      "")))
+                                                      "")
+                         :ret-clj-type return-type))
         (throw (ex-info (str "Function '" target "' is not declared in this context.") {}))))))
 
 (extend-type CString
@@ -450,38 +454,49 @@
                                                              :type   (-const-type rhs)
                                                              :getter ret-IR})))))
 
+(defn assign [^GenContext gen-ctx value llvm-var-ref]
+  (let [{:keys [ret-IR ret-clj-type]} (-codegen value gen-ctx)
+        ^LLVMBuilderRef builder (.-builder gen-ctx)
+        ^LLVMContextRef context (.-context gen-ctx)]
+    (LLVM/LLVMBuildStore builder (second (unwrap-pointer-type&value ret-clj-type builder context ret-IR)) llvm-var-ref)
+    gen-ctx))
+
 (extend-type CAssignment
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
-    (if-let [sym ((.-table-of-symbols gen-ctx) lhs)]
-      (if (= (:symbol/kind sym) :symbol-kind/variable)
-        (let [{:keys [ret-IR ret-clj-type]} (-codegen rhs gen-ctx)]
-          (let [^LLVMModuleRef module (.-module gen-ctx)
-                ^LLVMBuilderRef builder (.-builder gen-ctx)
-                ^LLVMContextRef context (.-context gen-ctx)]
-            (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
-              (do (LLVM/LLVMBuildStore builder (second (unwrap-pointer-type&value ret-clj-type builder context ret-IR)) global-var)
-                  gen-ctx)
-              (throw (ex-info "Global variable not found" {:symbol-name lhs})))))
-        (throw (ex-info "Cannot assign to a non-variable" {:symbol-name lhs
-                                                           :symbol-kind (:symbol/kind sym)})))
-      (throw (ex-info "Cannot assign to symbol, not declared in the context" {:symbol-name lhs})))))
+    (let [^LLVMModuleRef module (.-module gen-ctx)]
+      (if-let [sym ((.-table-of-symbols gen-ctx) lhs)]
+        (if (= (:symbol/kind sym) :symbol-kind/variable)
+          (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
+            (assign gen-ctx rhs global-var)
+            (throw (throw (ex-info "Global variable not found" {:symbol-name lhs}))))
+          (throw (ex-info "Cannot assign to a non-variable" {:symbol-name lhs
+                                                             :symbol-kind (:symbol/kind sym)})))
+        (let [{:current-function/keys [name ret-val]} *current-function-context*]
+          (if (= name lhs)
+            (assign gen-ctx rhs ret-val)
+            (throw (ex-info "Cannot assign to symbol, not declared in the context" {:symbol-name lhs}))))))))
 
 (extend-type CSymbol
   ICodegen
   (-codegen [{:keys [value]} ^GenContext gen-ctx]
-    (if-let [sym ((.-table-of-symbols gen-ctx) value)]
-      (case (:symbol/kind sym)
-        :symbol-kind/variable (let [^LLVMModuleRef module (.-module gen-ctx)]
-                                (if-let [^LLVMValueRef global-var (LLVM/LLVMGetNamedGlobal module ^String value)]
+    (let [^LLVMModuleRef module (.-module gen-ctx)]
+      (if-let [sym ((.-table-of-symbols gen-ctx) value)]
+        (case (:symbol/kind sym)
+          :symbol-kind/variable (if-let [^LLVMValueRef global-var (LLVM/LLVMGetNamedGlobal module ^String value)]
                                   (assoc gen-ctx :ret-IR global-var
                                                  :ret-clj-type (wrap-pointer-type (:symbol/type sym)))
-                                  (throw (ex-info "Global variable not found" {:symbol-name value}))))
-        :symbol-kind/constant (assoc gen-ctx :ret-IR (:symbol/getter sym)
-                                             :ret-clj-type (:symbol/type sym))
-        (throw (ex-info "Symbol is not a variable" {:symbol-name value
-                                                    :symbol-kind (:symbol/kind sym)})))
-      (throw (ex-info "Symbol not declared in the context" {:symbol-name value})))))
+                                  (throw (ex-info "Global variable not found" {:symbol-name value})))
+          :symbol-kind/constant (assoc gen-ctx :ret-IR (:symbol/getter sym)
+                                               :ret-clj-type (:symbol/type sym))
+          :symbol-kind/local-var (assoc gen-ctx :ret-IR (do ()
+                                                            (LLVM/LLVMGetParam (LLVM/LLVMGetNamedFunction module
+                                                                                                          ^String (:current-function/name *current-function-context*))
+                                                                               (:symbol/index sym)))
+                                                :ret-clj-type (:symbol/type sym))
+          (throw (ex-info "Symbol is not a variable" {:symbol-name value
+                                                      :symbol-kind (:symbol/kind sym)})))
+        (throw (ex-info "Symbol not declared in the context" {:symbol-name value}))))))
 
 (extend-type CWhile
   ICodegen
@@ -575,6 +590,52 @@
     (assoc gen-ctx :ret-IR (LLVM/LLVMConstInt (LLVM/LLVMInt1TypeInContext (.-context gen-ctx)) (if value 1 0) 0)
                    :ret-clj-type :bool-TYPE)))
 
+(extend-type CFunction
+  ICodegen
+  (-codegen [{:keys [name arglist return-type locals body forward]} ^GenContext gen-ctx]
+    (let [^LLVMContextRef context (.-context gen-ctx)
+          ^LLVMModuleRef module (.-module gen-ctx)
+          ^LLVMBuilderRef builder (.-builder gen-ctx)
+          llvm-arg-types (PointerPointer.
+                           ^"[Lorg.bytedeco.llvm.LLVM.LLVMTypeRef;" (into-array LLVMTypeRef (map #(get-llvm-type context (:type %)) arglist)))
+          llvm-return-type (get-llvm-type context return-type)
+          function-type (LLVM/LLVMFunctionType llvm-return-type llvm-arg-types ^int (count arglist) 0)
+          function (LLVM/LLVMAddFunction module ^String name function-type)
+          main-function-block (LLVM/LLVMAppendBasicBlockInContext context function (str name "_function_entry"))
+          _ (LLVM/LLVMPositionBuilderAtEnd builder main-function-block)
+          table-with-locals (reduce (fn [table-of-symbols [i {:keys [name type]}]]
+                                      (if (table-of-symbols name)
+                                        (throw (ex-info "Local variable already defined" {:name name}))
+                                        (assoc table-of-symbols name #:symbol{:kind  :symbol-kind/local-var
+                                                                              :type  type
+                                                                              :index i})))
+                                    (.-table-of-symbols gen-ctx)
+                                    (map-indexed vector arglist))
+          ret-val (LLVM/LLVMBuildAlloca builder llvm-return-type (str name "_ret_val"))]
+      (binding [*current-function-context* #:current-function{:name         name
+                                                              :clj-ret-type return-type
+                                                              :ret-val      ret-val}]
+        (let [new-ctx (assoc gen-ctx :table-of-symbols table-with-locals)]
+          (-codegen body new-ctx)
+          (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
+            (-codegen (CExit.) new-ctx))))
+      (update gen-ctx :table-of-symbols assoc name #:symbol{:kind :symbol-kind/function
+                                                            :type return-type}))))
+
+(extend-type CExit
+  ICodegen
+  (-codegen [_ ^GenContext gen-ctx]
+    (if (*current-function-context* :current-function/name)
+      (let [^LLVMBuilderRef builder (.-builder gen-ctx)
+            ^LLVMContextRef context (.-context gen-ctx)
+            ret-val (LLVM/LLVMBuildLoad2 builder
+                                         (get-llvm-type context (*current-function-context* :current-function/clj-ret-type))
+                                         ^LLVMValueRef (*current-function-context* :current-function/ret-val)
+                                         (str (*current-function-context* :current-function/name) "_ret_val_tmp"))]
+        (LLVM/LLVMBuildRet builder ret-val)
+        gen-ctx)
+      (throw (ex-info "Cannot call 'exit' if not inside a function" {})))))
+
 (defmacro ->err [& body]
   `(binding [*out* *err*]
      ~@body))
@@ -655,6 +716,7 @@
                                                              "20 % 3 = 2"
                                                              "3 * (4 + 17 % 6) - (7 / 2) = 24"
                                                              "3 * -4 = -12")}]
+                            ["basic-fn-test" {:expected (lines 3 7)}]
                             ["break-for" {:expected (lines "7 8" "7 9" "7 10" "6 7" "6 8" "6 9" "5 6"
                                                            "5 7" "5 8" "4 5" "4 6" "4 7" "3 4" "3 5")}]
                             ["conditionals" {:expected (lines "1 + 1 < 2: false"

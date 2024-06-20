@@ -1,0 +1,17 @@
+program add_function;
+
+function add(a : integer; b : integer) : integer;
+begin
+    add := a + b;
+    exit;
+end;
+
+function noRetAdd(a : integer; b : integer) : integer;
+begin
+    noRetAdd := a + b;
+end;
+
+begin
+    writeln(add(1, 2));
+    writeln(noRetAdd(3, 4));
+end.
