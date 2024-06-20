@@ -1,0 +1,50 @@
+program implicit_float_conv;
+
+var x : integer;
+var y : f32;
+
+begin
+    readln(x);
+    readln(y);
+
+    write(x); write(' < '); write(y); write(' : ');
+    if x < y then
+        writeln('yes')
+    else
+        writeln('no');
+
+    write(y); write(' < '); write(x); write(' : ');
+    if y < x then
+        writeln('yes')
+    else
+        writeln('no');
+
+    write(x); write(' > '); write(y); write(' : ');
+    if x > y then
+        writeln('yes')
+    else
+        writeln('no');
+
+    write(y); write(' > '); write(x); write(' : ');
+    if y > x then
+        writeln('yes')
+    else
+        writeln('no');
+
+    write(x); write(' == '); write(y); write(' : ');
+    if y = x then
+        writeln('yes')
+    else
+        writeln('no');
+
+    write(x); write(' != '); write(y); write(' : ');
+    if y <> x then
+        writeln('yes')
+    else
+        writeln('no');
+
+    write(x); write(' * '); write(y); write(' = '); writeln(x * y);
+    write(y); write(' * '); write(x); write(' = '); writeln(y * x);
+    write(x); write(' / '); write(y); write(' = '); writeln(x / y);
+    write(y); write(' / '); write(x); write(' = '); writeln(y / x);
+end.

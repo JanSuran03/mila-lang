@@ -352,37 +352,39 @@
 (defn build-bin-op [int-op float-op lhs rhs ^GenContext gen-ctx]
   (let [[t-L ir-L] (force-codegen-number lhs gen-ctx)
         [t-R ir-R] (force-codegen-number rhs gen-ctx)
-        ^LLVMBuilderRef builder (.-builder gen-ctx)]
+        ^LLVMBuilderRef builder (.-builder gen-ctx)
+        ^LLVMContextRef context (.-context gen-ctx)]
     (case [t-L t-R]
       [:token/integer-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (int-op builder ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
       [:token/float-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-op builder ir-L ir-R "") :ret-clj-type :token/float-TYPE)
       [:token/integer-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-op builder
-                                                                               (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                               (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext context) "")
                                                                                ir-R "")
                                                              :ret-clj-type :token/float-TYPE)
       [:token/float-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (float-op builder
                                                                                ir-L
-                                                                               (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                               (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext context) "")
                                                                                "")
                                                              :ret-clj-type :token/float-TYPE))))
 
 (def int-cmp ^LLVMValueRef ^[LLVMBuilderRef int LLVMValueRef LLVMValueRef String] LLVM/LLVMBuildICmp)
-(def float-cmp ^LLVMValueRef ^[LLVMBuilderRef int LLVMValueRef LLVMValueRef String] LLVM/LLVMBuildICmp)
+(def float-cmp ^LLVMValueRef ^[LLVMBuilderRef int LLVMValueRef LLVMValueRef String] LLVM/LLVMBuildFCmp)
 
 (defn build-cmp [int-cmp-kind float-cmp-kind lhs rhs ^GenContext gen-ctx]
   (let [[t-L ir-L] (force-codegen-number lhs gen-ctx)
         [t-R ir-R] (force-codegen-number rhs gen-ctx)
-        ^LLVMBuilderRef builder (.-builder gen-ctx)]
+        ^LLVMBuilderRef builder (.-builder gen-ctx)
+        ^LLVMContextRef context (.-context gen-ctx)]
     (case [t-L t-R]
       [:token/integer-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (int-cmp builder int-cmp-kind ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
       [:token/float-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
       [:token/integer-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind
-                                                                                (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                                (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext context) "")
                                                                                 ir-R "")
                                                              :ret-clj-type :token/integer-TYPE)
       [:token/float-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind
                                                                                 ir-L
-                                                                                (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext gen-ctx) "")
+                                                                                (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext context) "")
                                                                                 "")
                                                              :ret-clj-type :token/integer-TYPE))))
 
@@ -743,7 +745,8 @@
       (if (and out expected (= (normalize-string out) (normalize-string expected)))
         (println "Success:" file-name)
         (binding [*out* *err*]
-          (println "Incorrect output:" file-name))))))
+          (println "Incorrect output:" file-name)
+          (spit "sdfjnhkbfdsdnfj.txt" out))))))
 
 (defn lines [& xs]
   (str/join \newline xs))
@@ -788,6 +791,16 @@
                             ["hello-42" {:expected "42"}]
                             ["hello-pi" {:expected "3.140000"}]
                             ["hello-world" {:expected "Hello, world!"}]
+                            ["implicitFloatConv" {:in "3 3.14" :expected (lines "3 < 3.140000 : yes"
+                                                                                "3.140000 < 3 : no"
+                                                                                "3 > 3.140000 : no"
+                                                                                "3.140000 > 3 : yes"
+                                                                                "3 == 3.140000 : no"
+                                                                                "3 != 3.140000 : yes"
+                                                                                "3 * 3.140000 = 9.420000"
+                                                                                "3.140000 * 3 = 9.420000"
+                                                                                "3 / 3.140000 = 0.955414"
+                                                                                "3.140000 / 3 = 1.046667")}]
                             ["indirectRecursion" {:expected (lines 0 1 1 0)}]
                             ["inputOutput" {:in "42" :expected "42"}]
                             ["multiple-decls" {:expected "40"}]
