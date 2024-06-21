@@ -33,6 +33,7 @@
                                    CInteger
                                    CLogAnd
                                    CLogOr
+                                   CProcedure
                                    CProgram
                                    CString
                                    CSymbol
@@ -325,9 +326,11 @@
                                                 (maybe-implicit-cast raw-arg-IR (nth arg-types i) context builder))))))
                                       args)
                 ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" arg-vals (into-array LLVMValueRef (map second codegens))
-                arg-types (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" (into-array (map #(->> %
-                                                                                                            first
-                                                                                                            (get-llvm-type context)) codegens)))
+                arg-types (if (seq codegens)
+                            (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" (into-array (map #(->> %
+                                                                                                              first
+                                                                                                              (get-llvm-type context)) codegens)))
+                            (PointerPointer. 0))
                 return-type (:symbol/type ((.-table-of-symbols gen-ctx) target))]
             (assoc gen-ctx :ret-IR (LLVM/LLVMBuildCall2 builder
                                                         (LLVM/LLVMFunctionType (get-llvm-type context return-type)
@@ -672,7 +675,8 @@
                                                                                   :index i})))
                                         (.-table-of-symbols gen-ctx)
                                         (map-indexed vector arglist))
-              ret-val (LLVM/LLVMBuildAlloca builder func-llvm-ret-type (str name "_ret_val"))]
+              ret-val (when-not (identical? return-type :void-TYPE)
+                        (LLVM/LLVMBuildAlloca builder func-llvm-ret-type (str name "_ret_val")))]
           (binding [*current-function-context* #:current-function{:name         name
                                                                   :clj-ret-type return-type
                                                                   :ret-val      ret-val}]
@@ -682,17 +686,24 @@
                 (-codegen (CExit.) new-ctx))))
           gen-ctx)))))
 
+(extend-type CProcedure
+  ICodegen
+  (-codegen [{:keys [name arglist locals body forward]} ^GenContext gen-ctx]
+    (-codegen (CFunction. name arglist :void-TYPE locals body forward) gen-ctx)))
+
 (extend-type CExit
   ICodegen
   (-codegen [_ ^GenContext gen-ctx]
     (if (*current-function-context* :current-function/name)
       (let [^LLVMBuilderRef builder (.-builder gen-ctx)
-            ^LLVMContextRef context (.-context gen-ctx)
-            ret-val (LLVM/LLVMBuildLoad2 builder
-                                         (get-llvm-type context (*current-function-context* :current-function/clj-ret-type))
-                                         ^LLVMValueRef (*current-function-context* :current-function/ret-val)
-                                         (str (*current-function-context* :current-function/name) "_ret_val_tmp"))]
-        (LLVM/LLVMBuildRet builder ret-val)
+            ^LLVMContextRef context (.-context gen-ctx)]
+        (if (identical? (*current-function-context* :current-function/clj-ret-type) :void-TYPE)
+          (LLVM/LLVMBuildRetVoid builder)
+          (let [ret-val (LLVM/LLVMBuildLoad2 builder
+                                             (get-llvm-type context (*current-function-context* :current-function/clj-ret-type))
+                                             ^LLVMValueRef (*current-function-context* :current-function/ret-val)
+                                             (str (*current-function-context* :current-function/name) "_ret_val_tmp"))]
+            (LLVM/LLVMBuildRet builder ret-val)))
         gen-ctx)
       (throw (ex-info "Cannot call 'exit' if not inside a function" {})))))
 
@@ -814,6 +825,7 @@
                             ["explicitFloatConv" {:in "3.14 15" :expected (lines "3" "22.500000")}]
                             ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
+                            ["empty-proc" {:expected ""}]
                             ["factorialRec" {:in "5" :expected "120"}]
                             ["factorialCycle" {:in "5" :expected "120"}]
                             ["fibonacci" {:expected (lines 21 34)}]
@@ -854,6 +866,9 @@
                             ["multiple-decls" {:expected "40"}]
                             ["primes" {:expected (lines 2 3 5 7 11 13 17 19 23 29 31 37 41
                                                         43 47 53 59 61 67 71 73 79 83 89 97)}]
+                            ["procedures" {:expected (lines 4 3 2 1
+                                                            42
+                                                            0 1 2 3 4)}]
                             ["single-branch-if" {:in "3" :expected "odd"}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]

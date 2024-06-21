@@ -1,0 +1,41 @@
+program procedures;
+
+var x : integer;
+
+const y = 4;
+
+procedure countDown();
+begin
+    for x := y downto 0 do
+        writeln(x);
+end;
+
+procedure fwdPrint(a : integer); forward;
+
+procedure print(a : integer);
+begin
+    fwdPrint(a);
+end;
+
+procedure fwdPrint(a : integer);
+begin
+    writeln(a);
+end;
+
+procedure countToFive();
+begin
+    x := 0;
+    while true do
+        if x = 5 then
+            exit
+        else begin
+            writeln(x);
+            inc(x)
+        end;
+end;
+
+begin
+    countDown(); # using global vars
+    print(42); # arguments & forward declaration
+    countToFive(); # early return
+end.
