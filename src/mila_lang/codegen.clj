@@ -287,10 +287,17 @@
   (-codegen [{:keys [blocks]} ^GenContext gen-ctx]
     (->>codegen gen-ctx blocks)))
 
+(defn maybe-implicit-cast [[ret-clj-type ^LLVMValueRef ret-IR] fn-arg-type ^LLVMContextRef context ^LLVMBuilderRef builder]
+  (case [ret-clj-type fn-arg-type]
+    [:token/integer-TYPE :token/float-TYPE] [:token/float-TYPE (LLVM/LLVMBuildSIToFP builder ret-IR (LLVM/LLVMFloatTypeInContext context) "")]
+    [:token/float-TYPE :token/integer-TYPE] [:token/integer-TYPE (LLVM/LLVMBuildFPToSI builder ret-IR (LLVM/LLVMInt32TypeInContext context) "")]
+    [ret-clj-type ret-IR]))
+
 (extend-type CCall
   ICodegen
   (-codegen [{:keys [target args]} ^GenContext gen-ctx]
-    (let [target (coerce-extern target args (.-table-of-symbols gen-ctx))
+    (let [sym-table (.-table-of-symbols gen-ctx)
+          target (coerce-extern target args sym-table)
           ^LLVMContextRef context (.-context gen-ctx)
           ^LLVMModuleRef module (.-module gen-ctx)
           ^LLVMBuilderRef builder (.-builder gen-ctx)]
@@ -304,10 +311,16 @@
                                    :ret-clj-type :token/float-TYPE)
                   (throw (ex-info "Wrong number of arguments passed to float typecast" {:actual (count args)})))
         (if-let [^LLVMValueRef f (LLVM/LLVMGetNamedFunction ^LLVMModuleRef module ^String target)]
-          (let [codegens (map #(let [{:keys [ret-IR ret-clj-type]} (-codegen % gen-ctx)]
-                                 (if (pointer-arg-function? target)
-                                   [ret-clj-type ret-IR]
-                                   (unwrap-pointer-type&value ret-clj-type builder context ret-IR))) args)
+          (let [arg-types (:symbol/arg-types (sym-table target))
+                codegens (map-indexed (fn [i arg]
+                                        (let [{:keys [ret-IR ret-clj-type]} (-codegen arg gen-ctx)]
+                                          (if (pointer-arg-function? target)
+                                            [ret-clj-type ret-IR]
+                                            (let [raw-arg-IR (unwrap-pointer-type&value ret-clj-type builder context ret-IR)]
+                                              (if (nil? arg-types)
+                                                raw-arg-IR
+                                                (maybe-implicit-cast raw-arg-IR (nth arg-types i) context builder))))))
+                                      args)
                 ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" arg-vals (into-array LLVMValueRef (map second codegens))
                 arg-types (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" (into-array (map #(->> %
                                                                                                             first
@@ -636,8 +649,9 @@
 (extend-type CFunction
   ICodegen
   (-codegen [{:keys [name arglist return-type locals body forward] :as f} ^GenContext gen-ctx]
-    (let [^GenContext gen-ctx (update gen-ctx :table-of-symbols assoc name #:symbol{:kind :symbol-kind/function
-                                                                                    :type return-type})
+    (let [^GenContext gen-ctx (update gen-ctx :table-of-symbols assoc name #:symbol{:kind      :symbol-kind/function
+                                                                                    :type      return-type
+                                                                                    :arg-types (mapv :type arglist)})
           fmap (declare-function f gen-ctx)]
       (if forward
         (update gen-ctx :forwards assoc name fmap)
@@ -745,8 +759,7 @@
       (if (and out expected (= (normalize-string out) (normalize-string expected)))
         (println "Success:" file-name)
         (binding [*out* *err*]
-          (println "Incorrect output:" file-name)
-          (spit "sdfjnhkbfdsdnfj.txt" out))))))
+          (println "Incorrect output:" file-name))))))
 
 (defn lines [& xs]
   (str/join \newline xs))
@@ -801,6 +814,7 @@
                                                                                 "3.140000 * 3 = 9.420000"
                                                                                 "3 / 3.140000 = 0.955414"
                                                                                 "3.140000 / 3 = 1.046667")}]
+                            ["implicitIntConversion" {:expected (lines "9" "9.000000")}]
                             ["indirectRecursion" {:expected (lines 0 1 1 0)}]
                             ["inputOutput" {:in "42" :expected "42"}]
                             ["multiple-decls" {:expected "40"}]

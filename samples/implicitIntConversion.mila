@@ -1,0 +1,16 @@
+program implicit_int_conversion;
+
+function sqr(x : integer) : integer;
+begin
+    sqr := x * x;
+end;
+
+function sqrf(x : f32) : f32;
+begin
+    sqrf := x * x;
+end;
+
+begin
+    writeln(sqr(3.7));
+    writeln(sqrf(3));
+end.
