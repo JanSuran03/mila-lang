@@ -849,6 +849,15 @@
                             ["empty-proc" {:expected ""}]
                             ["factorialRec" {:in "5" :expected "120"}]
                             ["factorialCycle" {:in "5" :expected "120"}]
+                            ["factorization" {:expected (lines "Factors of 0:" 0
+                                                               "Factors of 2:" 2
+                                                               "Factors of 3:" 3
+                                                               "Factors of 4:" 2 2
+                                                               "Factors of 5:" 5
+                                                               "Factors of 15:" 3 5
+                                                               "Factors of 60:" 2 2 3 5
+                                                               "Factors of 121:" 11 11
+                                                               "Factors of 1001:" 7 11 13)}]
                             ["fibonacci" {:expected (lines 21 34)}]
                             ["floatIO" {:in "3.14" :expected "3.140000"}]
                             ["for-loops" {:expected (lines "0,0"
@@ -860,6 +869,10 @@
                                                            "1,1" "1,0"
                                                            "2,2" "2,1" "2,0"
                                                            "3,3" "3,2" "3,1" "3,0")}]
+                            ["gcd" {:expected (lines 27 27 27
+                                                     1 1 1
+                                                     4 4 4
+                                                     4 4 4)}]
                             ["hello-42" {:expected "42"}]
                             ["hello-pi" {:expected "3.140000"}]
                             ["hello-world" {:expected "Hello, world!"}]
