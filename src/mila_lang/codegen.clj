@@ -480,15 +480,24 @@
   (-codegen [{:keys [vars type]} ^GenContext gen-ctx]
     (let [^LLVMContextRef context (.-context gen-ctx)
           ^LLVMModuleRef module (.-module gen-ctx)
+          ^LLVMBuilderRef builder (.-builder gen-ctx)
           llvm-var-type (get-llvm-type context type)
           initial-value (get-initial-llvm-value type llvm-var-type)
           updated-table (reduce (fn [table ^String var-name]
-                                  (if (contains? table var-name)
-                                    (throw (ex-info "Symbol is already defined in this context." {:symbol-name var-name}))
-                                    (let [global-var (LLVM/LLVMAddGlobal module llvm-var-type var-name)]
-                                      (LLVM/LLVMSetInitializer global-var initial-value)
-                                      (assoc table var-name #:symbol{:kind :symbol-kind/variable
-                                                                     :type type}))))
+                                  (cond (contains? table var-name)
+                                        (throw (ex-info "Symbol is already defined in this context." {:symbol-name var-name}))
+
+                                        (nil? (*current-function-context* :current-function/name))
+                                        (let [global-var (LLVM/LLVMAddGlobal module llvm-var-type var-name)]
+                                          (LLVM/LLVMSetInitializer global-var initial-value)
+                                          (assoc table var-name #:symbol{:kind :symbol-kind/variable
+                                                                         :type type}))
+
+                                        :else               ; local vars
+                                        (let [local-var (LLVM/LLVMBuildAlloca builder (get-llvm-type context type) var-name)]
+                                          (assoc table var-name #:symbol{:kind   :symbol-kind/local-var
+                                                                         :type   type
+                                                                         :alloca local-var}))))
                                 (.-table-of-symbols gen-ctx)
                                 vars)]
       (assoc gen-ctx :table-of-symbols updated-table))))
@@ -674,7 +683,7 @@
               ^LLVMTypeRef func-llvm-ret-type (fmap :function/func-llvm-ret-type)
               main-function-block (LLVM/LLVMAppendBasicBlockInContext context func-llvm-IR (str name "_function_entry"))
               _ (LLVM/LLVMPositionBuilderAtEnd builder main-function-block)
-              table-with-locals (reduce (fn [table-of-symbols [i {^String arg-name :name arg-clj-type :type}]]
+              table-with-params (reduce (fn [table-of-symbols [i {^String arg-name :name arg-clj-type :type}]]
                                           (if (table-of-symbols arg-name)
                                             (throw (ex-info "Local variable already defined" {:name arg-name}))
                                             (let [arg-alloca (LLVM/LLVMBuildAlloca builder (get-llvm-type context arg-clj-type) arg-name)]
@@ -691,7 +700,8 @@
           (binding [*current-function-context* #:current-function{:name         name
                                                                   :clj-ret-type return-type
                                                                   :ret-val      ret-val}]
-            (let [new-ctx (assoc gen-ctx :table-of-symbols table-with-locals)]
+            (let [new-ctx (-> gen-ctx (assoc :table-of-symbols table-with-params)
+                              (->>codegen locals))]
               (-codegen body new-ctx)
               (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
                 (-codegen (CExit.) new-ctx))))
@@ -866,6 +876,10 @@
                             ["implicitIntConversion" {:expected (lines "9" "9.000000")}]
                             ["indirectRecursion" {:expected (lines 0 1 1 0)}]
                             ["inputOutput" {:in "42" :expected "42"}]
+                            ["locals" {:in "4 6" :expected (lines "1 2 3 4 5 6"
+                                                                  "2 4 6 8 10 12"
+                                                                  "3 6 9 12 15 18"
+                                                                  "4 8 12 16 20 24")}]
                             ["logOps" {:expected (lines "3 or 5 0..20:"
                                                         0 3 5 6 9 10 12 15 18 20
                                                         "3 and 5 0..100:"

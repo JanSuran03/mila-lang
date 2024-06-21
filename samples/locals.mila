@@ -1,0 +1,22 @@
+program locals;
+
+procedure grid(h : integer; w : integer);
+var row, col : integer;
+begin
+    for row := 1 to h + 1 do begin
+        for col := 1 to w + 1 do begin
+            if (col <> 1) then
+                write(' ');
+            write(row * col);
+        end;
+        writeln('');
+    end;
+end;
+
+var h, w : integer;
+
+begin
+    readln(h);
+    readln(w);
+    grid(h, w);
+end.
