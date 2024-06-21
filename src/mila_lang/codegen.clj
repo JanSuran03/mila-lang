@@ -307,12 +307,16 @@
           ^LLVMBuilderRef builder (.-builder gen-ctx)]
       (case target
         "int" (case (count args)
-                1 (assoc gen-ctx :ret-IR (LLVM/LLVMBuildFPToSI builder ^LLVMValueRef (:ret-IR (-codegen (first args) gen-ctx)) (LLVM/LLVMInt32TypeInContext context) "")
-                                 :ret-clj-type :token/integer-TYPE)
+                1 (let [{:keys [ret-IR ret-clj-type]} (-codegen (first args) gen-ctx)
+                        [_ ^LLVMValueRef ret-IR] (unwrap-pointer-type&value ret-clj-type builder context ret-IR)]
+                    (assoc gen-ctx :ret-IR (LLVM/LLVMBuildFPToSI builder ^LLVMValueRef ret-IR (LLVM/LLVMInt32TypeInContext context) "")
+                                   :ret-clj-type :token/integer-TYPE))
                 (throw (ex-info "Wrong number of arguments passed to int typecast" {:actual (count args)})))
         "float" (case (count args)
-                  1 (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef (:ret-IR (-codegen (first args) gen-ctx)) (LLVM/LLVMFloatTypeInContext context) "")
-                                   :ret-clj-type :token/float-TYPE)
+                  1 (let [{:keys [ret-IR ret-clj-type]} (-codegen (first args) gen-ctx)
+                          [_ ^LLVMValueRef ret-IR] (unwrap-pointer-type&value ret-clj-type builder context ret-IR)]
+                      (assoc gen-ctx :ret-IR (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ret-IR (LLVM/LLVMFloatTypeInContext context) "")
+                                     :ret-clj-type :token/float-TYPE))
                   (throw (ex-info "Wrong number of arguments passed to float typecast" {:actual (count args)})))
         (if-let [^LLVMValueRef f (LLVM/LLVMGetNamedFunction ^LLVMModuleRef module ^String target)]
           (let [arg-types (:symbol/arg-types (sym-table target))
@@ -499,8 +503,8 @@
                                                              :type   (-const-type rhs)
                                                              :getter ret-IR})))))
 
-(defn assign [^GenContext gen-ctx value llvm-var-ref]
-  (let [{:keys [ret-IR ret-clj-type]} (-codegen value gen-ctx)
+(defn assign [^GenContext gen-ctx raw-value-ast llvm-var-ref]
+  (let [{:keys [ret-IR ret-clj-type]} (-codegen raw-value-ast gen-ctx)
         ^LLVMBuilderRef builder (.-builder gen-ctx)
         ^LLVMContextRef context (.-context gen-ctx)]
     (LLVM/LLVMBuildStore builder (second (unwrap-pointer-type&value ret-clj-type builder context ret-IR)) llvm-var-ref)
@@ -510,16 +514,18 @@
   ICodegen
   (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
     (let [^LLVMModuleRef module (.-module gen-ctx)
-          {:current-function/keys [name ret-val]} *current-function-context*
+          {^String fn-name :current-function/name :current-function/keys [ret-val]} *current-function-context*
           table-sym ((.-table-of-symbols gen-ctx) lhs)]
-      (cond (= name lhs)                                    ; return address
+      (cond (= fn-name lhs)                                 ; return address
             (assign gen-ctx rhs ret-val)
 
             table-sym                                       ; standard symbol
-            (if (= (:symbol/kind table-sym) :symbol-kind/variable)
-              (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
-                (assign gen-ctx rhs global-var)
-                (throw (throw (ex-info "Global variable not found" {:symbol-name lhs}))))
+            (case (:symbol/kind table-sym)
+              :symbol-kind/variable (if-let [global-var (LLVM/LLVMGetNamedGlobal module ^String lhs)]
+                                      (assign gen-ctx rhs global-var)
+                                      (throw (throw (ex-info "Global variable not found" {:symbol-name lhs}))))
+              :symbol-kind/local-var (let [local-var (:symbol/alloca table-sym)]
+                                       (assign gen-ctx rhs local-var))
               (throw (ex-info "Cannot assign to a non-variable" {:symbol-name lhs
                                                                  :symbol-kind (:symbol/kind table-sym)})))
 
@@ -529,23 +535,24 @@
 (extend-type CSymbol
   ICodegen
   (-codegen [{:keys [value]} ^GenContext gen-ctx]
-    (let [^LLVMModuleRef module (.-module gen-ctx)]
-      (if-let [sym ((.-table-of-symbols gen-ctx) value)]
-        (case (:symbol/kind sym)
-          :symbol-kind/variable (if-let [^LLVMValueRef global-var (LLVM/LLVMGetNamedGlobal module ^String value)]
-                                  (assoc gen-ctx :ret-IR global-var
-                                                 :ret-clj-type (wrap-pointer-type (:symbol/type sym)))
-                                  (throw (ex-info "Global variable not found" {:symbol-name value})))
-          :symbol-kind/constant (assoc gen-ctx :ret-IR (:symbol/getter sym)
-                                               :ret-clj-type (:symbol/type sym))
-          :symbol-kind/local-var (assoc gen-ctx :ret-IR (do ()
-                                                            (LLVM/LLVMGetParam (LLVM/LLVMGetNamedFunction module
-                                                                                                          ^String (:current-function/name *current-function-context*))
-                                                                               (:symbol/index sym)))
-                                                :ret-clj-type (:symbol/type sym))
-          (throw (ex-info "Symbol is not a variable" {:symbol-name value
-                                                      :symbol-kind (:symbol/kind sym)})))
-        (throw (ex-info "Symbol not declared in the context" {:symbol-name value}))))))
+    (let [^LLVMModuleRef module (.-module gen-ctx)
+          {^String fn-name :current-function/name :current-function/keys [ret-val clj-ret-type]} *current-function-context*]
+      (if (= value fn-name)
+        (assoc gen-ctx :ret-IR ret-val
+                       :ret-clj-type (wrap-pointer-type clj-ret-type))
+        (if-let [sym ((.-table-of-symbols gen-ctx) value)]
+          (case (:symbol/kind sym)
+            :symbol-kind/variable (if-let [^LLVMValueRef global-var (LLVM/LLVMGetNamedGlobal module ^String value)]
+                                    (assoc gen-ctx :ret-IR global-var
+                                                   :ret-clj-type (wrap-pointer-type (:symbol/type sym)))
+                                    (throw (ex-info "Global variable not found" {:symbol-name value})))
+            :symbol-kind/constant (assoc gen-ctx :ret-IR (:symbol/getter sym)
+                                                 :ret-clj-type (:symbol/type sym))
+            :symbol-kind/local-var (assoc gen-ctx :ret-IR (:symbol/alloca sym)
+                                                  :ret-clj-type (wrap-pointer-type (:symbol/type sym)))
+            (throw (ex-info "Symbol is not a variable" {:symbol-name value
+                                                        :symbol-kind (:symbol/kind sym)})))
+          (throw (ex-info "Symbol not declared in the context" {:symbol-name value})))))))
 
 (extend-type CWhile
   ICodegen
@@ -667,12 +674,16 @@
               ^LLVMTypeRef func-llvm-ret-type (fmap :function/func-llvm-ret-type)
               main-function-block (LLVM/LLVMAppendBasicBlockInContext context func-llvm-IR (str name "_function_entry"))
               _ (LLVM/LLVMPositionBuilderAtEnd builder main-function-block)
-              table-with-locals (reduce (fn [table-of-symbols [i {:keys [name type]}]]
-                                          (if (table-of-symbols name)
-                                            (throw (ex-info "Local variable already defined" {:name name}))
-                                            (assoc table-of-symbols name #:symbol{:kind  :symbol-kind/local-var
-                                                                                  :type  type
-                                                                                  :index i})))
+              table-with-locals (reduce (fn [table-of-symbols [i {^String arg-name :name arg-clj-type :type}]]
+                                          (if (table-of-symbols arg-name)
+                                            (throw (ex-info "Local variable already defined" {:name arg-name}))
+                                            (let [arg-alloca (LLVM/LLVMBuildAlloca builder (get-llvm-type context arg-clj-type) arg-name)]
+                                              (LLVM/LLVMBuildStore builder
+                                                                   (LLVM/LLVMGetParam (fmap :function/func-llvm-IR) i)
+                                                                   arg-alloca)
+                                              (assoc table-of-symbols arg-name #:symbol{:kind   :symbol-kind/local-var
+                                                                                        :type   arg-clj-type
+                                                                                        :alloca arg-alloca}))))
                                         (.-table-of-symbols gen-ctx)
                                         (map-indexed vector arglist))
               ret-val (when-not (identical? return-type :void-TYPE)
@@ -864,6 +875,7 @@
                                                         "7 or 11 or 13 0..30:"
                                                         0 7 11 13 14 21 22 26 28)}]
                             ["multiple-decls" {:expected "40"}]
+                            ["mutate-args" {:expected (lines 15 45)}]
                             ["primes" {:expected (lines 2 3 5 7 11 13 17 19 23 29 31 37 41
                                                         43 47 53 59 61 67 71 73 79 83 89 97)}]
                             ["procedures" {:expected (lines 4 3 2 1

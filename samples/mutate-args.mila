@@ -1,0 +1,15 @@
+program mutate_args;
+
+function sumUntil(x : integer) : integer;
+begin
+    sumUntil := 0;
+    while x > 0 do begin
+        sumUntil := sumUntil + x;
+        x := x - 1;
+    end;
+end;
+
+begin
+    writeln(sumUntil(5));
+    writeln(sumUntil(9));
+end.
