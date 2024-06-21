@@ -31,6 +31,8 @@
                                    CIfElse
                                    CIndexOp
                                    CInteger
+                                   CLogAnd
+                                   CLogOr
                                    CProgram
                                    CString
                                    CSymbol
@@ -56,6 +58,7 @@
     :token/int-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt32TypeInContext ctx) 0)
     :token/float-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMFloatTypeInContext ctx) 0)
     :string-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext ctx) 0)
+    :bool-TYPE (LLVM/LLVMInt1TypeInContext ctx)
     :void-TYPE (LLVM/LLVMVoidTypeInContext ctx)
     (throw (ex-info "Unknown call type" {:type clj-type}))))
 
@@ -389,17 +392,17 @@
         ^LLVMBuilderRef builder (.-builder gen-ctx)
         ^LLVMContextRef context (.-context gen-ctx)]
     (case [t-L t-R]
-      [:token/integer-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (int-cmp builder int-cmp-kind ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
-      [:token/float-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind ir-L ir-R "") :ret-clj-type :token/integer-TYPE)
+      [:token/integer-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (int-cmp builder int-cmp-kind ir-L ir-R "") :ret-clj-type :bool-TYPE)
+      [:token/float-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind ir-L ir-R "") :ret-clj-type :bool-TYPE)
       [:token/integer-TYPE :token/float-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind
                                                                                 (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-L (LLVM/LLVMFloatTypeInContext context) "")
                                                                                 ir-R "")
-                                                             :ret-clj-type :token/integer-TYPE)
+                                                             :ret-clj-type :bool-TYPE)
       [:token/float-TYPE :token/integer-TYPE] (assoc gen-ctx :ret-IR (float-cmp builder float-cmp-kind
                                                                                 ir-L
                                                                                 (LLVM/LLVMBuildSIToFP builder ^LLVMValueRef ir-R (LLVM/LLVMFloatTypeInContext context) "")
                                                                                 "")
-                                                             :ret-clj-type :token/integer-TYPE))))
+                                                             :ret-clj-type :bool-TYPE))))
 
 (defmacro impl-bin-op [rec-name int-op float-op]
   `(extend-type ~rec-name
@@ -693,6 +696,24 @@
         gen-ctx)
       (throw (ex-info "Cannot call 'exit' if not inside a function" {})))))
 
+(extend-type CLogAnd
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (let [^LLVMValueRef lhs-IR (:ret-IR (-codegen lhs gen-ctx))
+          ^LLVMValueRef rhs-IR (:ret-IR (-codegen rhs gen-ctx))
+          ^LLVMBuilderRef builder (.-builder gen-ctx)]
+      (assoc gen-ctx :ret-IR (LLVM/LLVMBuildAnd builder lhs-IR rhs-IR "")
+                     :ret-clj-type :bool-TYPE))))
+
+(extend-type CLogOr
+  ICodegen
+  (-codegen [{:keys [lhs rhs]} ^GenContext gen-ctx]
+    (let [^LLVMValueRef lhs-IR (:ret-IR (-codegen lhs gen-ctx))
+          ^LLVMValueRef rhs-IR (:ret-IR (-codegen rhs gen-ctx))
+          ^LLVMBuilderRef builder (.-builder gen-ctx)]
+      (assoc gen-ctx :ret-IR (LLVM/LLVMBuildOr builder lhs-IR rhs-IR "")
+                     :ret-clj-type :bool-TYPE))))
+
 (defmacro ->err [& body]
   `(binding [*out* *err*]
      ~@body))
@@ -822,6 +843,14 @@
                             ["implicitIntConversion" {:expected (lines "9" "9.000000")}]
                             ["indirectRecursion" {:expected (lines 0 1 1 0)}]
                             ["inputOutput" {:in "42" :expected "42"}]
+                            ["logOps" {:expected (lines "3 or 5 0..20:"
+                                                        0 3 5 6 9 10 12 15 18 20
+                                                        "3 and 5 0..100:"
+                                                        0 15 30 45 60 75 90
+                                                        "3 and 5 and 7 0..1000:"
+                                                        0 105 210 315 420 525 630 735 840 945
+                                                        "7 or 11 or 13 0..30:"
+                                                        0 7 11 13 14 21 22 26 28)}]
                             ["multiple-decls" {:expected "40"}]
                             ["primes" {:expected (lines 2 3 5 7 11 13 17 19 23 29 31 37 41
                                                         43 47 53 59 61 67 71 73 79 83 89 97)}]

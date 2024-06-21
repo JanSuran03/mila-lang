@@ -230,8 +230,8 @@
  ["EXPR-OR' -> or EXPR-AND EXPR-OR'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/or])
-          [iter rhs] (EXPR-EQ-NE [iter])]
-      (EXPR-AND' [iter (CLogOr. lhs rhs)])))]
+          [iter rhs] (EXPR-AND [iter])]
+      (EXPR-OR' [iter (CLogOr. lhs rhs)])))]
 
  ["EXPR-AND -> EXPR-EQ-NE EXPR-AND'"
   (fn [[iter]]

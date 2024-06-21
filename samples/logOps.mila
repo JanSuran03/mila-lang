@@ -1,0 +1,25 @@
+program logOps;
+
+var x : integer;
+
+begin
+    writeln('3 or 5 0..20:');
+    for x := 0 to 21 do
+        if x % 3 = 0 or x % 5 = 0 then
+            writeln(x);
+
+    writeln('3 and 5 0..100:');
+        for x := 0 to 101 do
+            if x % 3 = 0 and x % 5 = 0 then
+                writeln(x);
+
+    writeln('3 and 5 and 7 0..1000:');
+        for x := 0 to 1001 do
+            if x % 3 = 0 and x % 5 = 0 and x % 7 = 0 then
+                writeln(x);
+
+    writeln('7 or 11 or 13 0..30:');
+        for x := 0 to 31 do
+            if x % 7 = 0 or x % 11 = 0 or x % 13 = 0 then
+                writeln(x);
+end.
