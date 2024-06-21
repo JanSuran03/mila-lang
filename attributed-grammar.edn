@@ -316,17 +316,17 @@
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/mul])
           [iter rhs] (EXPR-UNARY [iter])]
-      [iter (CArithmMul. lhs rhs)]))]
+      (EXPR-MUL' [iter (CArithmMul. lhs rhs)])))]
  ["EXPR-MUL' -> div EXPR-UNARY EXPR-MUL'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/div])
           [iter rhs] (EXPR-UNARY [iter])]
-      [iter (CArithmDiv. lhs rhs)]))]
+      (EXPR-MUL' [iter (CArithmDiv. lhs rhs)])))]
  ["EXPR-MUL' -> mod EXPR-UNARY EXPR-MUL'"
   (fn [[iter lhs]]
     (let [[iter] (match [iter :token/mod])
           [iter rhs] (EXPR-UNARY [iter])]
-      [iter (CArithmMod. lhs rhs)]))]
+      (EXPR-MUL' [iter (CArithmMod. lhs rhs)])))]
 
  ["EXPR-UNARY -> EXPR-L0"
   (fn [args]

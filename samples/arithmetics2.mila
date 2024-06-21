@@ -1,0 +1,9 @@
+program arithmetics2;
+
+begin
+    write('23 % 8 % 4 = '); writeln(23 % 8 % 4);
+    write('20 + 7 + 2 = '); writeln(20 + 7 + 2);
+    write('20 - 7 - 2 = '); writeln(20 - 7 - 2);
+    write('20 * 7 * 2 = '); writeln(20 * 7 * 2);
+    write('50 / 3 / 4 = '); writeln(50 / 3 / 4);
+end.
