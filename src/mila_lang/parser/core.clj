@@ -137,5 +137,3 @@
            (catch ExceptionInfo _
              (binding [*out* *err*]
                (println "Error parsing" (.getName child))))))))
-
-(time (parse-samples))
