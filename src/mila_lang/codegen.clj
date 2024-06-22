@@ -892,6 +892,7 @@
                             ["explicitFloatConv" {:in "3.14 15" :expected (lines "3" "22.500000")}]
                             ["expressions" {:in "5" :expected "30"}]
                             ["expressions2" {:in "10 13" :expected (lines 10 13 23 3 330 2)}]
+                            ["extra-syntax" {:expected (lines 3 "0.420000")}]
                             ["empty-proc" {:expected ""}]
                             ["factorialRec" {:in "5" :expected "120"}]
                             ["factorialCycle" {:in "5" :expected "120"}]

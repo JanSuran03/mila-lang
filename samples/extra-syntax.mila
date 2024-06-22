@@ -1,0 +1,13 @@
+program extra_syntax;
+
+begin
+    if 1+2==0
+        then writeln(0)
+    else if 1+2!=3
+        then writeln(42)
+    else if 1+2==2
+        then writeln(2)
+    else writeln(3);
+
+    writeln(.42);
+end.

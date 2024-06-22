@@ -16,8 +16,8 @@
 (def ws-pat (list \space \newline \tab \return))
 (def num-base-pat (list \$ \&))
 (def common-token-char-pat (seq ":<>+-*/="))
-(def token-end-pat (concat ws-pat "'.,;()[]"))
-(def safe-num-sym-end-pat (seq ":<>' \n\t\r,;+-*/()[]="))
+(def token-end-pat (concat ws-pat "'.,;()[]!"))
+(def safe-num-sym-end-pat (seq ":<>' \n\t\r,;+-*/()[]=!"))
 
 (defn invalid-token [buf]
   (throw (RuntimeException. (str "Invalid token: " buf))))
@@ -74,7 +74,8 @@
       (\space \newline \tab \return) (lex-impl :lexer/default input (inc index))
       \+ [[:token/add] (inc index)]
       \, [[:token/comma] (inc index)]
-      \= [[:token/eq] (inc index)]
+      \= (lex-impl :lexer/eq input index)
+      \! (lex-impl :lexer/ne input index)
       \[ [[:token/lbracket] (inc index)]
       \( [[:token/lparen] (inc index)]
       \* [[:token/mul] (inc index)]
@@ -126,10 +127,11 @@
   ((fn [input index tokens]
      (if (eof? input index)
        (conj tokens [:token/eof])
-       (let [[next-token next-index] (lex-impl :lexer/default input index)]
-         (if (= (next-token 0) :token/eof)
-           (conj tokens [:token/eof])
-           (recur input next-index (conj tokens next-token))))))
+       (let [res (lex-impl :lexer/default input index)]
+         (let [[next-token next-index] res]
+           (if (= (next-token 0) :token/eof)
+             (conj tokens [:token/eof])
+             (recur input next-index (conj tokens next-token)))))))
    input
    0
    []))

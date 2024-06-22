@@ -14,6 +14,21 @@
           [(concat lexer/token-end-pat lexer/sym-char-pat)] [[:token/colon] index]
           (invalid-token (str \: ch)))))))
 
+(defmethod lexer/lex-impl :lexer/eq
+  [_ input index]
+  (let [index (inc index)]
+    (cond (eof? input index) [[:token/eof] index]
+          (identical? (char-at input index) \=) [[:token/eq] (inc index)]
+          :else (let [res [[:token/eq] index]]
+                  res))))
+
+(defmethod lexer/lex-impl :lexer/ne
+  [_ input index]
+  (let [index (inc index)]
+    (cond (eof? input index) (invalid-token \!)
+          (identical? (char-at input index) \=) [[:token/ne] (inc index)]
+          :else (invalid-token (str \= (char-at input index))))))
+
 (defn- sym->?token [buf index]
   (if-let [word-token (lexer/word-tokens (keyword "token" buf))]
     [[word-token] index]
@@ -66,6 +81,7 @@
       (let [ch (char-at input index)]
         (case ch
           \. [[:token/dotdot] (inc index)]
+          [lexer/any-dig-pat] (lex-decimal-float-part 0 input index)
           [lexer/common-token-char-pat] (invalid-token (str \. ch))
           [[:token/dot] index])))))
 
@@ -128,23 +144,19 @@
   (let [index (inc index)]
     (if (eof? input index)
       [[:token/gt] index]
-      (let [ch (char-at input index)]
-        (case ch
-          \= [[:token/ge] (inc index)]
-          [lexer/token-end-pat] [[:token/gt] index]
-          (invalid-token (str ">" ch)))))))
+      (if (identical? (char-at input index) \=)
+        [[:token/ge] (inc index)]
+        [[:token/gt] index]))))
 
 (defmethod lexer/lex-impl :lexer/lt
   [_ input index]
   (let [index (inc index)]
     (if (eof? input index)
       [[:token/lt] index]
-      (let [ch (char-at input index)]
-        (case ch
-          \= [[:token/le] (inc index)]
-          \> [[:token/ne] (inc index)]
-          [lexer/token-end-pat] [[:token/lt] index]
-          (invalid-token (str "<" ch)))))))
+      (case (char-at input index)
+        \= [[:token/le] (inc index)]
+        \> [[:token/ne] (inc index)]
+        [[:token/lt] index]))))
 
 (defn escape-char [s index]
   (case (char-at s index)

@@ -77,6 +77,32 @@
                       [:token/eof]]}
             {:input  "3."
              :tokens [[:token/float 3.0]
+                      [:token/eof]]}
+            {:input  ";a!=b;"
+             :tokens [[:token/semicolon]
+                      [:token/symbol "a"]
+                      [:token/ne]
+                      [:token/symbol "b"]
+                      [:token/semicolon]
+                      [:token/eof]]}
+            {:input  ";a==b;"
+             :tokens [[:token/semicolon]
+                      [:token/symbol "a"]
+                      [:token/eq]
+                      [:token/symbol "b"]
+                      [:token/semicolon]
+                      [:token/eof]]}
+            {:input  ";a=>b;"
+             :tokens [[:token/semicolon]
+                      [:token/symbol "a"]
+                      [:token/eq]
+                      [:token/gt]
+                      [:token/symbol "b"]
+                      [:token/semicolon]
+                      [:token/eof]]}
+            {:input "a.42"
+             :tokens [[:token/symbol "a"]
+                      [:token/float 0.42]
                       [:token/eof]]}])
 
 (def wrong-inputs ["2a"
