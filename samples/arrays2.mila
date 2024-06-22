@@ -1,0 +1,13 @@
+program arrays1;
+
+var arr : array [0 .. 4] of integer;
+var i : integer;
+
+begin
+    for i := 0 to 5 do
+        arr[i] := (i + 2) * (i + 2) % 7;
+
+    for i := 0 to 5 do begin
+        write('arr['); write(i); write('] = '); writeln(arr[i]);
+    end;
+end.

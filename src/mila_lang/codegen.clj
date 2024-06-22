@@ -29,6 +29,7 @@
                                    CFloat
                                    CFunction
                                    CIfElse
+                                   CIndexAssignment
                                    CIndexOp
                                    CInteger
                                    CLogAnd
@@ -52,16 +53,23 @@
                        ret-clj-type
                        forwards])
 
+(defn- ^Integer arrlen [arr-type]
+  (inc (- (:value (:to arr-type))
+          (:value (:from arr-type)))))
+
 (defn ^LLVMTypeRef get-llvm-type [^LLVMContextRef ctx clj-type]
-  (case clj-type
-    :token/integer-TYPE (LLVM/LLVMInt32TypeInContext ctx)
-    :token/float-TYPE (LLVM/LLVMFloatTypeInContext ctx)
-    :token/int-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt32TypeInContext ctx) 0)
-    :token/float-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMFloatTypeInContext ctx) 0)
-    :string-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext ctx) 0)
-    :bool-TYPE (LLVM/LLVMInt1TypeInContext ctx)
-    :void-TYPE (LLVM/LLVMVoidTypeInContext ctx)
-    (throw (ex-info "Unknown call type" {:type clj-type}))))
+  (if (instance? CArrayType clj-type)
+    (LLVM/LLVMArrayType (get-llvm-type ctx (:type clj-type))
+                        (arrlen clj-type))
+    (case clj-type
+      :token/integer-TYPE (LLVM/LLVMInt32TypeInContext ctx)
+      :token/float-TYPE (LLVM/LLVMFloatTypeInContext ctx)
+      :token/int-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt32TypeInContext ctx) 0)
+      :token/float-pointer-TYPE (LLVM/LLVMPointerType (LLVM/LLVMFloatTypeInContext ctx) 0)
+      :string-TYPE (LLVM/LLVMPointerType (LLVM/LLVMInt8TypeInContext ctx) 0)
+      :bool-TYPE (LLVM/LLVMInt1TypeInContext ctx)
+      :void-TYPE (LLVM/LLVMVoidTypeInContext ctx)
+      (throw (ex-info "Unknown call type" {:type clj-type})))))
 
 (defn wrap-pointer-type [clj-type]
   (case clj-type
@@ -79,13 +87,6 @@
     :token/float-pointer-TYPE [:token/float-TYPE (LLVM/LLVMBuildLoad2 builder (get-llvm-type context :token/float-TYPE) llvm-IR "")]
     :string-TYPE [:string-TYPE llvm-IR]
     (throw (ex-info "Cannot unwrap pointer value" {:clj-type clj-type}))))
-
-(defn ^LLVMValueRef get-initial-llvm-value [clj-type ^LLVMTypeRef llvm-type]
-  (case clj-type
-    :token/integer-TYPE (LLVM/LLVMConstInt llvm-type 0 0)
-    :token/float-TYPE (LLVM/LLVMConstReal llvm-type 0)
-    :void-TYPE (throw (ex-info "Cannot have a variable of void type" {}))
-    (throw (ex-info "Unknown type for variable declaration" {:clj-type clj-type}))))
 
 (defn pointer-arg-function? [target]
   (#{"read_int" "read_float" "dec_int" "inc_int"} target))
@@ -187,7 +188,10 @@
   (-clj-type [{:keys [val]} sym-table] (-clj-type val sym-table))
 
   CCall
-  (-clj-type [{:keys [target]} sym-table] (get-in sym-table [target :symbol/type])))
+  (-clj-type [{:keys [target]} sym-table] (get-in sym-table [target :symbol/type]))
+
+  CIndexOp
+  (-clj-type [{:keys [arr-name]} sym-table] (get-in sym-table [arr-name :symbol/type :type])))
 
 (defn coerce-extern [fname [first-arg] sym-table]
   (case fname
@@ -482,7 +486,7 @@
           ^LLVMModuleRef module (.-module gen-ctx)
           ^LLVMBuilderRef builder (.-builder gen-ctx)
           llvm-var-type (get-llvm-type context type)
-          initial-value (get-initial-llvm-value type llvm-var-type)
+          initial-value (LLVM/LLVMConstNull llvm-var-type)
           updated-table (reduce (fn [table ^String var-name]
                                   (cond (contains? table var-name)
                                         (throw (ex-info "Symbol is already defined in this context." {:symbol-name var-name}))
@@ -746,6 +750,44 @@
       (assoc gen-ctx :ret-IR (LLVM/LLVMBuildOr builder lhs-IR rhs-IR "")
                      :ret-clj-type :bool-TYPE))))
 
+(defn build-array-gep [^GenContext gen-ctx ^String arr-name index-expr op-name]
+  (if-let [array-variable-sym ((.-table-of-symbols gen-ctx) arr-name)]
+    (if (instance? CArrayType (:symbol/type array-variable-sym))
+      (if-let [array-pointer (LLVM/LLVMGetNamedGlobal ^LLVMModuleRef (.-module gen-ctx) arr-name)]
+        (let [{clj-elem-type :type :keys [from] :as full-array-type} (:symbol/type array-variable-sym)
+              zero-index (LLVM/LLVMConstInt (LLVM/LLVMInt32TypeInContext (.-context gen-ctx)) 0 0)
+              {^LLVMValueRef computed-index :ret-IR} (-codegen (CArithmSub. index-expr from) gen-ctx)
+              ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" indices (into-array LLVMValueRef [zero-index computed-index])
+              llvm-elem-type (get-llvm-type (.-context gen-ctx) clj-elem-type)]
+          [(LLVM/LLVMBuildGEP2 ^LLVMBuilderRef (.-builder gen-ctx)
+                               (get-llvm-type (.-context gen-ctx) full-array-type)
+                               ^LLVMValueRef array-pointer
+                               (PointerPointer. indices)
+                               2
+                               "")
+           clj-elem-type llvm-elem-type])
+        (throw (ex-info (str "Index " op-name ": Could not find array global") {:array-name arr-name})))
+      (throw (ex-info (str "Index " op-name ": Cannot perform, not an array") {:array-name arr-name})))
+    (throw (ex-info (str "Index " op-name ": Could not find declared array") {:array-name arr-name
+                                                                              :table      (.-table-of-symbols gen-ctx)}))))
+
+(extend-type CIndexAssignment
+  ICodegen
+  (-codegen [{:keys [arr index-expr rhs]} ^GenContext gen-ctx]
+    (let [[array-gep _] (build-array-gep gen-ctx arr index-expr "assignment")]
+      (LLVM/LLVMBuildStore (.-builder gen-ctx) (:ret-IR (-codegen rhs gen-ctx)) array-gep)
+      gen-ctx)))
+
+(extend-type CIndexOp
+  ICodegen
+  (-codegen [{:keys [arr-name index-expr]} ^GenContext gen-ctx]
+    (let [[^LLVMValueRef array-gep clj-elem-type ^LLVMTypeRef llvm-elem-type] (build-array-gep gen-ctx arr-name index-expr "operator")]
+      (assoc gen-ctx :ret-IR (LLVM/LLVMBuildLoad2 ^LLVMBuilderRef (.-builder gen-ctx)
+                                                  llvm-elem-type
+                                                  array-gep
+                                                  "")
+                     :ret-clj-type clj-elem-type))))
+
 (defmacro ->err [& body]
   `(binding [*out* *err*]
      ~@body))
@@ -831,6 +873,12 @@
                                                               "20 - 7 - 2 = 11"
                                                               "20 * 7 * 2 = 280"
                                                               "50 / 3 / 4 = 4")}]
+                            ["arrays1" {:expected "1"}]
+                            ["arrays2" {:expected (lines "arr[0] = 4"
+                                                         "arr[0] = 2"
+                                                         "arr[0] = 2"
+                                                         "arr[0] = 4"
+                                                         "arr[0] = 1")}]
                             ["basic-fn-test" {:expected (lines 3 7)}]
                             ["break-for" {:expected (lines "7 8" "7 9" "7 10" "6 7" "6 8" "6 9" "5 6"
                                                            "5 7" "5 8" "4 5" "4 6" "4 7" "3 4" "3 5")}]

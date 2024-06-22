@@ -1,0 +1,8 @@
+program arrays0;
+
+var arr : array [0 .. 0] of integer;
+
+begin
+    arr[0] := 1;
+    writeln(arr[0]);
+end.
