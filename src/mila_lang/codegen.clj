@@ -757,15 +757,14 @@
         (let [{clj-elem-type :type :keys [from] :as full-array-type} (:symbol/type array-variable-sym)
               zero-index (LLVM/LLVMConstInt (LLVM/LLVMInt32TypeInContext (.-context gen-ctx)) 0 0)
               {^LLVMValueRef computed-index :ret-IR} (-codegen (CArithmSub. index-expr from) gen-ctx)
-              ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" indices (into-array LLVMValueRef [zero-index computed-index])
-              llvm-elem-type (get-llvm-type (.-context gen-ctx) clj-elem-type)]
+              ^"[Lorg.bytedeco.llvm.LLVM.LLVMValueRef;" indices (into-array LLVMValueRef [zero-index computed-index])]
           [(LLVM/LLVMBuildGEP2 ^LLVMBuilderRef (.-builder gen-ctx)
                                (get-llvm-type (.-context gen-ctx) full-array-type)
                                ^LLVMValueRef array-pointer
                                (PointerPointer. indices)
                                2
                                "")
-           clj-elem-type llvm-elem-type])
+           clj-elem-type])
         (throw (ex-info (str "Index " op-name ": Could not find array global") {:array-name arr-name})))
       (throw (ex-info (str "Index " op-name ": Cannot perform, not an array") {:array-name arr-name})))
     (throw (ex-info (str "Index " op-name ": Could not find declared array") {:array-name arr-name
@@ -775,18 +774,15 @@
   ICodegen
   (-codegen [{:keys [arr index-expr rhs]} ^GenContext gen-ctx]
     (let [[array-gep _] (build-array-gep gen-ctx arr index-expr "assignment")]
-      (LLVM/LLVMBuildStore (.-builder gen-ctx) (:ret-IR (-codegen rhs gen-ctx)) array-gep)
+      (assign gen-ctx rhs array-gep)
       gen-ctx)))
 
 (extend-type CIndexOp
   ICodegen
   (-codegen [{:keys [arr-name index-expr]} ^GenContext gen-ctx]
-    (let [[^LLVMValueRef array-gep clj-elem-type ^LLVMTypeRef llvm-elem-type] (build-array-gep gen-ctx arr-name index-expr "operator")]
-      (assoc gen-ctx :ret-IR (LLVM/LLVMBuildLoad2 ^LLVMBuilderRef (.-builder gen-ctx)
-                                                  llvm-elem-type
-                                                  array-gep
-                                                  "")
-                     :ret-clj-type clj-elem-type))))
+    (let [[^LLVMValueRef array-gep clj-elem-type] (build-array-gep gen-ctx arr-name index-expr "operator")]
+      (assoc gen-ctx :ret-IR array-gep
+                     :ret-clj-type (wrap-pointer-type clj-elem-type)))))
 
 (defmacro ->err [& body]
   `(binding [*out* *err*]
@@ -873,12 +869,14 @@
                                                               "20 - 7 - 2 = 11"
                                                               "20 * 7 * 2 = 280"
                                                               "50 / 3 / 4 = 4")}]
+                            ["arrayMax" {:expected (lines 11 66 128 49 133 46
+                                                          133)}]
                             ["arrays1" {:expected "1"}]
                             ["arrays2" {:expected (lines "arr[0] = 4"
-                                                         "arr[0] = 2"
-                                                         "arr[0] = 2"
-                                                         "arr[0] = 4"
-                                                         "arr[0] = 1")}]
+                                                         "arr[1] = 2"
+                                                         "arr[2] = 2"
+                                                         "arr[3] = 4"
+                                                         "arr[4] = 1")}]
                             ["basic-fn-test" {:expected (lines 3 7)}]
                             ["break-for" {:expected (lines "7 8" "7 9" "7 10" "6 7" "6 8" "6 9" "5 6"
                                                            "5 7" "5 8" "4 5" "4 6" "4 7" "3 4" "3 5")}]
@@ -958,6 +956,8 @@
                                                             42
                                                             0 1 2 3 4)}]
                             ["single-branch-if" {:in "3" :expected "odd"}]
+                            ["sortBubble" {:in       "10 50 60 20 40 70 20"
+                                           :expected (lines 10 20 20 40 50 60 70)}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]
                             ["vars" {:expected (lines "x := 3, y := 4"
