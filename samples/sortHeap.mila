@@ -1,0 +1,53 @@
+program sortSelect;
+
+const N = 20;
+var arr : array [0 .. 20] of integer;
+var size : integer;
+
+procedure heapBubbleDown(i : integer);
+    var child, tmp: integer;
+begin
+    while 2 * i <= size do begin
+        child := 2 * i;
+        if (child < size and arr[child + 1] < arr[child]) then
+            inc(child);
+        if (arr[child] < arr[i]) then begin
+            tmp := arr[child];
+            arr[child] := arr[i];
+            arr[i] := tmp;
+            i := child
+        end
+        else
+            break;
+    end;
+end;
+
+procedure heapBuild();
+    var i: integer;
+begin
+    for i := N / 2 downto 0 do
+        heapBubbleDown(i);
+end;
+
+function heapExtractMax() : integer;
+begin
+    heapExtractMax := arr[1];
+    arr[1] := arr[size];
+    dec(size);
+    heapBubbleDown(1);
+end;
+
+var i, min : integer;
+
+begin
+    size := N;
+
+    for i := 1 to N + 1 do
+        readln(arr[i]);
+
+    heapBuild();
+
+    while size > 0 do begin
+        writeln(heapExtractMax());
+    end;
+end.

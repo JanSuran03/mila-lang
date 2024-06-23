@@ -959,6 +959,9 @@
                             ["single-branch-if" {:in "3" :expected "odd"}]
                             ["sortBubble" {:in       "10 50 60 20 40 70 20"
                                            :expected (lines 10 20 20 40 50 60 70)}]
+                            ["sortHeap" (let [nums (repeatedly 20 #(rand-int 1000))]
+                                          {:in       (str/join " " nums)
+                                           :expected (apply lines (sort nums))})]
                             ["sortInsert" {:in       "10 1 7 2 8 5 9 5 7 4"
                                            :expected (lines 1 2 4 5 5 7 7 8 9 10)}]
                             ["sortSelect" {:in       "10 1 7 2 8 5 9 5 7 4"
