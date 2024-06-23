@@ -1,0 +1,22 @@
+program sortInsert;
+
+var i, j, k, temp : integer;
+var arr : array [0 .. 9] of integer;
+
+begin
+    for i := 0 to 10 do
+        readln(arr[i]);
+
+    for i := 1 to 10 do begin # insert from unsorted
+        j := 0; # get insertion point, shift until including
+        while arr[j] < arr[i] do
+            inc(j);
+        temp := arr[i];
+        for k := i downto j do
+            arr[k] := arr[k - 1];
+        arr[j] := temp;
+    end;
+
+    for i := 0 to 10 do
+        writeln(arr[i]);
+end.
