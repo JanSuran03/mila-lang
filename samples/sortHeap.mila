@@ -1,20 +1,18 @@
-program sortSelect;
+program sortHeap;
 
 const N = 20;
 var arr : array [0 .. 20] of integer;
 var size : integer;
 
 procedure heapBubbleDown(i : integer);
-    var child, tmp: integer;
+    var child: integer;
 begin
     while 2 * i <= size do begin
         child := 2 * i;
         if (child < size and arr[child + 1] < arr[child]) then
             inc(child);
         if (arr[child] < arr[i]) then begin
-            tmp := arr[child];
-            arr[child] := arr[i];
-            arr[i] := tmp;
+            swap(arr[i], arr[child]);
             i := child
         end
         else
@@ -29,9 +27,9 @@ begin
         heapBubbleDown(i);
 end;
 
-function heapExtractMax() : integer;
+function heapExtractMin() : integer;
 begin
-    heapExtractMax := arr[1];
+    heapExtractMin := arr[1];
     arr[1] := arr[size];
     dec(size);
     heapBubbleDown(1);
@@ -48,6 +46,6 @@ begin
     heapBuild();
 
     while size > 0 do begin
-        writeln(heapExtractMax());
+        writeln(heapExtractMin());
     end;
 end.

@@ -1,6 +1,6 @@
 program sortBubble;
 
-var i, j, change, temp : integer;
+var i, j, change : integer;
 var arr : array [-3 .. 3] of integer;
 begin
     for i := -3 to 4 do
@@ -11,9 +11,7 @@ begin
         for i := -3 to j do
             if (arr[i] > arr[i + 1]) then begin
                 change := 1;
-                temp := arr[i];
-                arr[i] := arr[i + 1];
-                arr[i + 1] := temp;
+                swap(arr[i], arr[i + 1]);
             end;
         if (change = 0) then break;
     end;

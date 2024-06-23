@@ -89,7 +89,7 @@
     (throw (ex-info "Cannot unwrap pointer value" {:clj-type clj-type}))))
 
 (defn pointer-arg-function? [target]
-  (#{"read_int" "read_float" "dec_int" "inc_int"} target))
+  (#{"read_int" "read_float" "dec_int" "inc_int" "swap_ints" "swap_floats"} target))
 
 (defn with-context [^String module-name f]
   (with-open [context (LLVM/LLVMContextCreate)]
@@ -106,7 +106,9 @@
                                                 "read_int"      #:symbol{:kind :symbol-kind/function :type :void-TYPE}
                                                 "read_float"    #:symbol{:kind :symbol-kind/function :type :void-TYPE}
                                                 "int"           #:symbol{:kind :symbol-kind/function :type :token/integer-TYPE}
-                                                "float"         #:symbol{:kind :symbol-kind/function :type :token/float-TYPE}}
+                                                "float"         #:symbol{:kind :symbol-kind/function :type :token/float-TYPE}
+                                                "swap_ints"     #:symbol{:kind :symbol-kind/function :type :void-TYPE}
+                                                "swap_floats"   #:symbol{:kind :symbol-kind/function :type :void-TYPE}}
                         nil nil {}))))))
 
 (defmacro keymap [& keys]
@@ -122,6 +124,8 @@
 (def ^:const ^String WRITELN-INT "writeln_int")
 (def ^:const ^String WRITELN-FLOAT "writeln_float")
 (def ^:const ^String WRITELN-STR "writeln_str")
+(def ^:const ^String SWAP-INTS "swap_ints")
+(def ^:const ^String SWAP-FLOATS "swap_floats")
 
 (def ^:dynamic *break-continue-blocks* ())
 (def ^:dynamic *current-function-context* #:current-function{:name nil :ret-val nil :clj-ret-type nil})
@@ -193,7 +197,7 @@
   CIndexOp
   (-clj-type [{:keys [arr-name]} sym-table] (get-in sym-table [arr-name :symbol/type :type])))
 
-(defn coerce-extern [fname [first-arg] sym-table]
+(defn coerce-extern [fname [first-arg second-arg] sym-table]
   (case fname
     "write" (case (-clj-type first-arg sym-table)
               :string-TYPE "write_str"
@@ -206,6 +210,10 @@
     "readln" (case (-clj-type first-arg sym-table)
                :token/integer-TYPE "read_int"
                :token/float-TYPE "read_float")
+    "swap" (case [(-clj-type first-arg sym-table) (-clj-type second-arg sym-table)]
+             [:token/integer-TYPE :token/integer-TYPE] "swap_ints"
+             [:token/float-TYPE :token/float-TYPE] "swap_floats"
+             (throw (ex-info "Cannot swap int/float or float/int." {})))
     "dec" "dec_int"
     "inc" "inc_int"
     fname))
@@ -243,6 +251,16 @@
                                                                              (.put char-ptr-type))
                                                                            1
                                                                            0)
+                                    fn-type-intptr-intptr (LLVM/LLVMFunctionType void-type
+                                                                                 (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMTypeRef;"
+                                                                                                  (into-array LLVMTypeRef [int-ptr-type int-ptr-type]))
+                                                                                 2
+                                                                                 0)
+                                    fn-type-floatptr-floatptr (LLVM/LLVMFunctionType void-type
+                                                                                     (PointerPointer. ^"[Lorg.bytedeco.llvm.LLVM.LLVMTypeRef;"
+                                                                                                      (into-array LLVMTypeRef [float-ptr-type float-ptr-type]))
+                                                                                     2
+                                                                                     0)
                                     ^LLVMModuleRef module (.-module gen-ctx)]
                                 (LLVM/LLVMAddFunction module FN-DEC-INT fn-type-intptr)
                                 (LLVM/LLVMAddFunction module FN-INC-INT fn-type-intptr)
@@ -254,6 +272,8 @@
                                 (LLVM/LLVMAddFunction module WRITELN-INT fn-type-int)
                                 (LLVM/LLVMAddFunction module WRITELN-FLOAT fn-type-float)
                                 (LLVM/LLVMAddFunction module WRITELN-STR fn-type-charptr)
+                                (LLVM/LLVMAddFunction module SWAP-INTS fn-type-intptr-intptr)
+                                (LLVM/LLVMAddFunction module SWAP-FLOATS fn-type-floatptr-floatptr)
                                 gen-ctx))))
 
 (def ^:dynamic *main-block* false)
@@ -968,6 +988,16 @@
                                            :expected (lines 1 2 4 5 5 7 7 8 9 10)}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
                                                              " and return\r.")}]
+                            ["swap-test" {:expected (lines "a := 1"
+                                                           "b := 2"
+                                                           "swap a, b"
+                                                           "a := 2"
+                                                           "b := 1"
+                                                           "c := 2.720000"
+                                                           "d := 3.140000"
+                                                           "swap c, d"
+                                                           "c := 3.140000"
+                                                           "d := 2.720000")}]
                             ["vars" {:expected (lines "x := 3, y := 4"
                                                       "x + y = 7"
                                                       "y := y * y"

@@ -1,0 +1,32 @@
+program swap_test;
+
+var a, b : integer;
+var c, d : f32;
+
+procedure printInts();
+begin
+    write('a := '); writeln(a);
+    write('b := '); writeln(b);
+end;
+
+procedure printFloats();
+begin
+    write('c := '); writeln(c);
+    write('d := '); writeln(d);
+end;
+
+begin
+    a := 1;
+    b := 2;
+    printInts();
+    writeln('swap a, b');
+    swap(a, b);
+    printInts();
+
+    c := 2.72;
+    d := 3.14;
+    printFloats();
+    writeln('swap c, d');
+    swap(c, d);
+    printFloats();
+end.

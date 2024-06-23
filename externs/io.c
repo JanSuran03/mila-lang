@@ -39,3 +39,15 @@ void writeln_float(float x) {
 void writeln_str(const char *s) {
     printf("%s\n", s);
 }
+
+void swap_ints(int *x, int *y) {
+    int tmp = *x;
+    *x = *y;
+    *y = tmp;
+}
+
+void swap_floats(float *x, float *y) {
+    float tmp = *x;
+    *x = *y;
+    *y = tmp;
+}
