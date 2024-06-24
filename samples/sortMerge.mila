@@ -1,0 +1,60 @@
+program sortMerge;
+
+var arr, arr_tmp : array [0 .. 19] of integer;
+
+procedure merge(i_from: integer; i_mid :integer; i_to: integer);
+    var it1, it2, i : integer;
+begin
+    it1 := i_from;
+    it2 := i_mid + 1;
+    i := i_from;
+    while it1 <= i_mid and it2 <= i_to do begin
+        if (arr[it1] < arr[it2]) then begin
+            arr_tmp[i] := arr[it1];
+            inc(it1);
+        end else begin
+            arr_tmp[i] := arr[it2];
+            inc(it2);
+        end;
+        inc(i);
+    end;
+
+    if (it1 > i_mid) then
+        while (it2 <= i_to) do begin
+            arr_tmp[i] := arr[it2];
+            inc(it2);
+            inc(i);
+        end
+    else
+        while (it1 <= i_mid) do begin
+            arr_tmp[i] := arr[it1];
+            inc(it1);
+            inc(i);
+        end;
+
+    for i := i_from to i_to + 1 do
+        arr[i] := arr_tmp[i];
+end;
+
+procedure mergeSort(i_from: integer; i_to: integer);
+    var i_mid : integer;
+begin
+    if i_from == i_to
+        then exit;
+    i_mid := (i_from + i_to) / 2;
+    mergeSort(i_from, i_mid);
+    mergeSort(i_mid + 1, i_to);
+    merge(i_from, i_mid, i_to);
+end;
+
+var i : integer;
+
+begin
+    for i := 0 to 20 do
+        readln(arr[i]);
+
+    mergeSort(0, 19);
+
+    for i := 0 to 20 do
+        writeln(arr[i]);
+end.

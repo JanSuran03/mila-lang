@@ -605,7 +605,8 @@
       (LLVM/LLVMPositionBuilderAtEnd builder body-block)
       (binding [*break-continue-blocks* (cons #:block{:break exit-block :continue body-block} *break-continue-blocks*)]
         (-codegen body gen-ctx))
-      (LLVM/LLVMBuildBr builder cond-block)
+      (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
+        (LLVM/LLVMBuildBr builder cond-block))
       ; end
       (LLVM/LLVMPositionBuilderAtEnd builder exit-block)
       gen-ctx)))
@@ -638,7 +639,8 @@
     (LLVM/LLVMPositionBuilderAtEnd builder body-block)
     (binding [*break-continue-blocks* (cons #:block{:break exit-block :continue loop-block} *break-continue-blocks*)]
       (-codegen body gen-ctx))
-    (LLVM/LLVMBuildBr builder loop-block)
+    (when-not (LLVM/LLVMGetBasicBlockTerminator (LLVM/LLVMGetInsertBlock builder))
+      (LLVM/LLVMBuildBr builder loop-block))
     ; inc var
     (LLVM/LLVMPositionBuilderAtEnd builder loop-block)
     (-codegen (CAssignment. iter-var loop-inc-expr) gen-ctx)
@@ -862,15 +864,20 @@
   [s]
   (->> s str/split-lines (filter seq)))
 
-(defn run-sample [[file-name {:keys [expected] :as prog-sh-conf}]]
+(defn run-sample [[file-name {:keys [expected interactive?] :as prog-sh-conf}]]
   (let [src-file (str "samples/" file-name ".mila")
         IR-file (str "out/" file-name ".bc")
         out-file (str "out/" file-name ".exe")]
-    (let [{:keys [out]} (compile-and-run src-file IR-file out-file prog-sh-conf)]
-      (if (and out expected (= (normalize-string out) (normalize-string expected)))
-        (println "Success:" file-name)
-        (binding [*out* *err*]
-          (println "Incorrect output:" file-name))))))
+    (let [{:keys [out] :as m} (compile-and-run src-file IR-file out-file prog-sh-conf)]
+      (cond interactive?
+            m
+
+            (and out expected (= (normalize-string out) (normalize-string expected)))
+            (println "Success:" file-name)
+
+            :else
+            (binding [*out* *err*]
+              (println "Incorrect output:" file-name))))))
 
 (defn lines [& xs]
   (str/join \newline xs))
@@ -984,6 +991,9 @@
                                            :expected (apply lines (sort nums))})]
                             ["sortInsert" {:in       "10 1 7 2 8 5 9 5 7 4"
                                            :expected (lines 1 2 4 5 5 7 7 8 9 10)}]
+                            ["sortMerge" (let [nums (repeatedly 20 #(rand-int 1000))]
+                                           {:in       (str/join " " nums)
+                                            :expected (apply lines (sort nums))})]
                             ["sortSelect" {:in       "10 1 7 2 8 5 9 5 7 4"
                                            :expected (lines 1 2 4 5 5 7 7 8 9 10)}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"
