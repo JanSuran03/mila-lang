@@ -994,6 +994,9 @@
                             ["sortMerge" (let [nums (repeatedly 20 #(rand-int 1000))]
                                            {:in       (str/join " " nums)
                                             :expected (apply lines (sort nums))})]
+                            ["sortQuick" (let [nums (repeatedly 20 #(rand-int 1000))]
+                                           {:in       (str/join " " nums)
+                                            :expected (apply lines (sort nums))})]
                             ["sortSelect" {:in       "10 1 7 2 8 5 9 5 7 4"
                                            :expected (lines 1 2 4 5 5 7 7 8 9 10)}]
                             ["string-test" {:expected (lines "A quote', tab\t, newline"

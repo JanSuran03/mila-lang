@@ -1,0 +1,39 @@
+program sortQuick;
+
+var arr : array [0 .. 19] of integer;
+
+function partition(i_from: integer; i_to: integer) : integer;
+    var i_part, i : integer;
+begin
+    i_part := i_from + 1;
+    for i := i_from + 1 to i_to + 1 do begin
+        if (arr[i] <= arr[i_from]) then begin
+            swap(arr[i], arr[i_part]);
+            inc(i_part);
+        end;
+    end;
+    swap(arr[i_from], arr[i_part - 1]);
+    partition := i_part - 1;
+end;
+
+procedure quickSort(i_from: integer; i_to: integer);
+    var part : integer;
+begin
+    if (i_to - i_from < 1) then exit;
+
+    part := partition(i_from, i_to);
+    quickSort(i_from, part - 1);
+    quickSort(part + 1, i_to);
+end;
+
+var i : integer;
+
+begin
+    for i := 0 to 20 do
+        readln(arr[i]);
+
+    quickSort(0, 19);
+
+    for i := 0 to 20 do
+        writeln(arr[i]);
+end.
